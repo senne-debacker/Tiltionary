@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, Dimensions, TouchableOpacity, TextInput, Alert,
 import { Accelerometer } from 'expo-sensors';
 import * as Haptics from 'expo-haptics';
 import Svg, { Polyline, Circle } from 'react-native-svg';
-import { db } from './firebaseConfig'; // Jouw Firebase connectie
+import { db } from './firebaseConfig';
 import { ref, set, onValue, update, remove } from 'firebase/database';
 
 const { width, height } = Dimensions.get('window');
@@ -13,8 +13,8 @@ const WORDS = ['APPEL', 'HUIS', 'AUTO', 'KAT', 'BOOM', 'FIETS', 'ZON', 'VIS'];
 
 export default function App() {
   // --- MULTIPLAYER STATE ---
-  const [appState, setAppState] = useState('lobby'); // 'lobby', 'hosting', 'playing', 'won'
-  const [role, setRole] = useState(null); // 'host' of 'guest'
+  const [appState, setAppState] = useState('lobby'); 
+  const [role, setRole] = useState(null); 
   const [roomCode, setRoomCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [wordToDraw, setWordToDraw] = useState('');
@@ -31,6 +31,7 @@ export default function App() {
   const pathsRef = useRef([]);
   const drawStateRef = useRef('waiting');
   const penLiftedRef = useRef(false);
+  const lastSyncTime = useRef(0); // De missende ref voor de 100ms update!
 
   useEffect(() => { pathsRef.current = paths; }, [paths]);
   useEffect(() => { drawStateRef.current = drawState; }, [drawState]);
@@ -39,8 +40,6 @@ export default function App() {
   // ==========================================
   // FIREBASE MULTIPLAYER LOGICA
   // ==========================================
-
-  // Host maakt een kamer aan
   const createRoom = () => {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     const randomWord = WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -48,7 +47,8 @@ export default function App() {
     set(ref(db, `rooms/${code}`), {
       status: 'waiting',
       word: randomWord,
-      winner: false
+      winner: false,
+      paths: []
     });
 
     setRoomCode(code);
@@ -57,16 +57,14 @@ export default function App() {
     setAppState('hosting');
   };
 
-  // Guest probeert te joinen
   const joinRoom = () => {
     if (joinCode.length !== 4) return Alert.alert("Fout", "Vul een 4-cijferige code in.");
     
     const roomRef = ref(db, `rooms/${joinCode}`);
-    // Luister één keer of de kamer bestaat
     onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (data && data.status === 'waiting') {
-        update(roomRef, { status: 'playing' }); // Zet de game op gestart!
+        update(roomRef, { status: 'playing' }); 
         setRoomCode(joinCode);
         setRole('guest');
         setAppState('playing');
@@ -76,7 +74,6 @@ export default function App() {
     }, { onlyOnce: true });
   };
 
-  // Live luisteren naar wijzigingen in de database
   useEffect(() => {
     if (!roomCode) return;
     const roomRef = ref(db, `rooms/${roomCode}`);
@@ -84,24 +81,20 @@ export default function App() {
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) {
-        // Kamer is verwijderd (host heeft afgesloten)
         setAppState('lobby');
         setRoomCode('');
         Alert.alert("Game Over", "De host heeft het spel afgesloten.");
         return;
       }
 
-      // Als guest: teken de lijnen die via Firebase binnenkomen
       if (role === 'guest' && data.paths) {
         setPaths(data.paths);
       }
 
-      // Check of de game begint (voor de host)
       if (role === 'host' && data.status === 'playing' && appState !== 'playing') {
         setAppState('playing');
       }
 
-      // Check of er iemand gewonnen heeft
       if (data.winner) {
         setAppState('won');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -111,25 +104,12 @@ export default function App() {
     return () => unsubscribe();
   }, [roomCode, appState, role]);
 
-  // Host: stuur tekening 2x per seconde naar Firebase
-  useEffect(() => {
-    if (role === 'host' && appState === 'playing') {
-      const interval = setInterval(() => {
-        // We sturen de huidige state van de lijnen naar het internet
-        update(ref(db, `rooms/${roomCode}`), { paths: pathsRef.current });
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, [role, appState, roomCode]);
-
-  // Guest: raad het woord
   const submitGuess = () => {
     if (!guessInput) return;
     const roomRef = ref(db, `rooms/${roomCode}`);
     onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (data && guessInput.toUpperCase().trim() === data.word) {
-        // Woord is goed!
         update(roomRef, { winner: true });
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -139,22 +119,20 @@ export default function App() {
     }, { onlyOnce: true });
   };
 
-
   // ==========================================
-  // HARDWARE SENSOR & TEKEN LOGICA (Alleen voor host!)
+  // HARDWARE SENSOR & TEKEN LOGICA (Alleen host)
   // ==========================================
-
   useEffect(() => {
     Accelerometer.setUpdateInterval(16);
     const subscription = Accelerometer.addListener(({ x, y, z }) => {
-      // Sensoren werken alleen als je de host bent en aan het spelen bent
-      if (role !== 'host' || appState !== 'playing') return;
+      if (!roomCode || role !== 'host' || appState !== 'playing') return;
 
       const gForce = Math.sqrt(x * x + y * y + z * z);
       if (gForce > 2.2 && drawStateRef.current === 'drawing') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setDrawState('waiting');
         setPaths([]);
+        set(ref(db, `rooms/${roomCode}/paths`), []); 
         return;
       }
 
@@ -183,13 +161,26 @@ export default function App() {
         if (lastPoint && Math.hypot(newX - lastPoint.x, newY - lastPoint.y) > 2) {
           currentPaths[lastPathIndex].points.push(newPos);
           setPaths(currentPaths);
+
+          // Delta Updates naar Firebase (om de 100ms)
+          const now = Date.now();
+          if (now - lastSyncTime.current > 100) {
+            set(ref(db, `rooms/${roomCode}/paths/${lastPathIndex}`), {
+              color: currentPaths[lastPathIndex].color,
+              points: currentPaths[lastPathIndex].points
+            });
+            lastSyncTime.current = now;
+          }
         }
       }
     });
 
     return () => subscription.remove();
-  }, [role, appState]);
+  }, [role, appState, roomCode]);
 
+  // ==========================================
+  // AANRAAK LOGICA
+  // ==========================================
   const handleTouchStart = (e) => {
     if (role !== 'host' || appState !== 'playing') return;
     const { locationX, locationY } = e.nativeEvent;
@@ -217,21 +208,16 @@ export default function App() {
   };
 
   // ==========================================
-  // SCHERM WEERGAVES (UI)
+  // UI WEERGAVES
   // ==========================================
-
-  // 1. LOBBY SCHERM
   if (appState === 'lobby') {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.title}>Tilt Pictionary</Text>
-        
         <TouchableOpacity style={styles.bigButton} onPress={createRoom}>
           <Text style={styles.buttonText}>Maak een Kamer (Host)</Text>
         </TouchableOpacity>
-
         <View style={styles.divider} />
-
         <TextInput 
           style={styles.input} 
           placeholder="Kamer Code (4 cijfers)" 
@@ -248,7 +234,6 @@ export default function App() {
     );
   }
 
-  // 2. WACHT SCHERM (Voor host)
   if (appState === 'hosting') {
     return (
       <View style={styles.centerContainer}>
@@ -259,7 +244,6 @@ export default function App() {
     );
   }
 
-  // 3. OVERWINNINGS SCHERM
   if (appState === 'won') {
     return (
       <View style={styles.centerContainer}>
@@ -277,10 +261,8 @@ export default function App() {
     );
   }
 
-  // 4. HET GAME SCHERM (Host tekent, Guest kijkt)
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      {/* HEADER */}
       <View style={styles.header}>
         {role === 'host' ? (
           <Text style={styles.headerText}>Jij tekent: <Text style={{fontWeight: 'bold', color: '#FF3B30'}}>{wordToDraw}</Text></Text>
@@ -289,7 +271,6 @@ export default function App() {
         )}
       </View>
 
-      {/* CANVAS */}
       <View 
         style={[styles.canvas, { backgroundColor: role === 'host' && drawState === 'waiting' ? '#2c2c2e' : '#1c1c1e' }]}
         onStartShouldSetResponder={() => true}
@@ -314,7 +295,6 @@ export default function App() {
         </Svg>
       </View>
 
-      {/* GUEST BEDIENING (Raden) */}
       {role === 'guest' && (
         <View style={styles.guessContainer}>
           <TextInput 
@@ -334,7 +314,6 @@ export default function App() {
   );
 }
 
-// --- STYLES ---
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   centerContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center', padding: 20 },
