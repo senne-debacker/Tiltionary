@@ -22,7 +22,16 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-audio"
+      "expo-audio",
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": "Sta Tiltionary toe om je tekeningen op te slaan in je fotobibliotheek.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
     ]
   }
 }

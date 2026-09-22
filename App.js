@@ -1,131 +1,217 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
-import { db } from './firebaseConfig';
-import { ref, onValue } from 'firebase/database';
+// App.js
+// Houdt bij wie je bent en in welke kamer je zit, en kiest op basis van de
+// status in Firebase welk scherm je ziet. Alle spelers zien dus automatisch
+// hetzelfde scherm.
 
-// Importeer al je mooie schermen!
-import LobbyScreen from './src/screens/LobbyScreen';
-import WaitingScreen from './src/screens/WaitingScreen';
-import WinScreen from './src/screens/WinScreen';
-import GameScreen from './src/screens/GameScreen';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { StyleSheet, View, Text, Alert, ActivityIndicator } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { useAudioPlayer, setAudioModeAsync } from "expo-audio";
+
+import LobbyScreen from "./src/screens/LobbyScreen";
+import WaitingScreen from "./src/screens/WaitingScreen";
+import AnnouncementScreen from "./src/screens/AnnouncementScreen";
+import GameScreen from "./src/screens/GameScreen";
+import TurnResultScreen from "./src/screens/TurnResultScreen";
+import PodiumScreen from "./src/screens/PodiumScreen";
+import SandboxScreen from "./src/screens/SandboxScreen";
+
+import useRoom from "./src/hooks/useRoom";
+import useHostEngine from "./src/hooks/useHostEngine";
+import usePresence from "./src/hooks/usePresence";
+import { useServerTime } from "./src/hooks/useServerTime";
+import { leaveRoom } from "./src/logic/room";
+import { colors } from "./src/theme";
+
+const EMPTY_SESSION = {
+  code: "",
+  playerId: "",
+  nickname: "",
+  isHost: false,
+};
 
 export default function App() {
-  // 1. De Master State (Dit is het enige dat App.js hoeft te onthouden)
-  const [appState, setAppState] = useState('lobby'); 
-  const [role, setRole] = useState(null); 
-  const [roomCode, setRoomCode] = useState('');
-  const [wordToDraw, setWordToDraw] = useState('');
-  const [paths, setPaths] = useState([]);
-  const [playerId, setPlayerId] = useState('');
-  const [nickname, setNickname] = useState('');
+  const [session, setSession] = useState(EMPTY_SESSION);
+  const [sandbox, setSandbox] = useState(false);
 
-  // De ding-sound wordt hier centraal beheerd (App.js unmount't nooit),
-  // zodat een scherm-wissel naar WinScreen het geluid niet afkapt.
-  const dingPlayer = useAudioPlayer(require('./assets/ding.mp3'));
-  const hasPlayedWinSound = useRef(false);
+  const serverNow = useServerTime();
+  const { gameState, players, settings, loaded } = useRoom(session.code);
+
+  useHostEngine({
+    isHost: session.isHost,
+    code: session.code,
+    gameState,
+    players,
+    settings,
+    serverNow,
+  });
+
+  usePresence({
+    code: session.code,
+    playerId: session.playerId,
+    isHost: session.isHost,
+    hostAwaySince: gameState?.hostAwaySince,
+    serverNow,
+  });
+
+  // Het geluidje leeft hier, in de component die nooit unmount. Speel je het
+  // af in een scherm dat meteen daarna wisselt, dan wordt het afgekapt.
+  const dingPlayer = useAudioPlayer(require("./assets/ding.mp3"));
+  const leavingRef = useRef(false);
 
   useEffect(() => {
-    async function setupAudio() {
-      try {
-        await setAudioModeAsync({ playsInSilentMode: true });
-      } catch (e) {
-        console.log('Audio mode error:', e);
-      }
-    }
-    setupAudio();
+    setAudioModeAsync({ playsInSilentMode: true }).catch((e) =>
+      console.log("Audio mode error:", e),
+    );
   }, []);
 
-// 2. De Firebase Watcher (Luistert of de kamer wijzigt)
+  const playDing = useCallback(() => {
+    try {
+      dingPlayer.seekTo(0).finally(() => dingPlayer.play());
+    } catch (error) {
+      console.log("Fout bij afspelen ding:", error);
+    }
+  }, [dingPlayer]);
+
+  const goHome = useCallback(() => {
+    leavingRef.current = true;
+    setSession(EMPTY_SESSION);
+    // Kort blokkeren, anders ziet de listener de kamer nog even verdwijnen
+    // en krijg je alsnog een melding.
+    setTimeout(() => {
+      leavingRef.current = false;
+    }, 500);
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    const { code, playerId, isHost } = session;
+    Alert.alert(
+      isHost ? "Kamer sluiten?" : "Kamer verlaten?",
+      isHost
+        ? "Het spel stopt dan voor iedereen."
+        : "Je verliest je punten in dit potje.",
+      [
+        { text: "Annuleren", style: "cancel" },
+        {
+          text: isHost ? "Sluiten" : "Verlaten",
+          style: "destructive",
+          onPress: () => {
+            leaveRoom({ code, playerId, isHost });
+            goHome();
+          },
+        },
+      ],
+    );
+  }, [session, goHome]);
+
+  // Kamer weg of eruit gezet? Netjes terug naar het startscherm.
   useEffect(() => {
-    if (!roomCode) return;
-    const roomRef = ref(db, `rooms/${roomCode}`);
+    if (!session.code || !loaded || leavingRef.current) return;
 
-    const unsubscribe = onValue(roomRef, (snapshot) => {
-      const data = snapshot.val();
+    if (!gameState) {
+      // Dit vuurt zowel wanneer de host bewust "Sluiten" indrukt, als
+      // wanneer Firebase's onDisconnect de kamer opruimt omdat de host de
+      // app sloot/crashte/de genadetijd overschreed (zie usePresence.js) —
+      // voor de speler ziet dat er hetzelfde uit: de host is er niet meer.
+      goHome();
+      Alert.alert("Host is weg", "De host heeft het spel verlaten.");
+      return;
+    }
 
-      if (!data) {
-        setAppState('lobby');
-        setRoomCode('');
-        Alert.alert("Game Over", "De kamer is gesloten.");
-        return;
-      }
+    const playerIds = Object.keys(players || {});
+    if (playerIds.length > 0 && !players[session.playerId]) {
+      goHome();
+      Alert.alert("Verwijderd", "Je bent uit de kamer gezet door de host.");
+    }
+  }, [session.code, session.playerId, loaded, gameState, players, goHome]);
 
-      // Check of JIJ gekickt bent
-      if (role === 'guest' && playerId && data.players && !data.players[playerId]) {
-        setAppState('lobby');
-        setRoomCode('');
-        Alert.alert("Gekickt", "Je bent uit de kamer verwijderd door de host.");
-        return;
-      }
+  // ------------------------------------------------------------- Routing
 
-      // De nieuwe gameState checken!
-      const state = data.gameState?.status;
-      const actueelWoord = data.gameState?.currentWord;
-
-      // Haal het woord op
-      if (actueelWoord) {
-        setWordToDraw(actueelWoord);
-      }
-
-      // Start het spel
-      if (state === 'playing' && appState !== 'playing') {
-        setAppState('playing');
-        hasPlayedWinSound.current = false; // nieuw potje, geluid mag weer afspelen
-      }
-
-      // Check of er een winnaar is in de NIEUWE database structuur
-      if (data.gameState?.winner) {
-        setAppState('won');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-        // Speel de ding maar 1x per potje af, en alleen voor de rader.
-        // Dit gebeurt hier (in App.js, dat nooit unmount't) in plaats van in
-        // GameScreen, omdat GameScreen meteen wordt vervangen door WinScreen
-        // zodra 'winner' true wordt, waardoor het geluid daar werd
-        // afgebroken voor je het kon horen.
-        if (!hasPlayedWinSound.current && role === 'guest') {
-          hasPlayedWinSound.current = true;
-          try {
-            dingPlayer.seekTo(0).finally(() => dingPlayer.play());
-          } catch (e) {
-            console.log('Fout bij afspelen ding:', e);
-          }
-        }
-      }
-
-      // Live de getekende lijnen updaten (als je kijker bent)
-      if (role === 'guest' && data.drawing?.paths) {
-        setPaths(data.drawing.paths);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [roomCode, appState, role, playerId]);
-
-  // 3. De Verkeersregelaar (Welk scherm moeten we tonen?)
-if (appState === 'lobby') {
+  if (sandbox) {
     return (
-      <LobbyScreen 
-        setAppState={setAppState} 
-        setRole={setRole} 
-        setRoomCode={setRoomCode} 
-        setPlayerId={setPlayerId}   // <--- NIEUW
-        setNickname={setNickname}   // <--- NIEUW
-      />
+      <>
+        <StatusBar style="light" />
+        <SandboxScreen onExit={() => setSandbox(false)} />
+      </>
     );
   }
 
-if (appState === 'hosting') {
-    return <WaitingScreen roomCode={roomCode} role={role} />;
+  if (!session.code) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <LobbyScreen
+          onEnterRoom={({ code, playerId, name, isHost }) =>
+            setSession({ code, playerId, nickname: name, isHost })
+          }
+          onSandbox={() => setSandbox(true)}
+        />
+      </>
+    );
   }
 
-  if (appState === 'won') {
-    return <WinScreen role={role} roomCode={roomCode} setAppState={setAppState} setPaths={setPaths} />;
+  if (!loaded || !gameState) {
+    return (
+      <View style={styles.loading}>
+        <StatusBar style="light" />
+        <ActivityIndicator color={colors.primary} size="large" />
+        <Text style={styles.loadingText}>Kamer laden...</Text>
+      </View>
+    );
   }
 
-if (appState === 'playing') {
-    return <GameScreen role={role} roomCode={roomCode} wordToDraw={wordToDraw} appState={appState} paths={paths} setPaths={setPaths} setAppState={setAppState} />;
-  }
+  const shared = {
+    roomCode: session.code,
+    playerId: session.playerId,
+    nickname: session.nickname,
+    isHost: session.isHost,
+    gameState,
+    players,
+    settings,
+    serverNow,
+    onLeave: handleLeave,
+  };
+
+  const screens = {
+    announcement: <AnnouncementScreen {...shared} />,
+    choosing: <GameScreen {...shared} onCorrectGuess={playDing} />,
+    playing: <GameScreen {...shared} onCorrectGuess={playDing} />,
+    turnResult: <TurnResultScreen {...shared} />,
+    podium: <PodiumScreen {...shared} />,
+  };
+
+  return (
+    <>
+      <StatusBar style="light" />
+      {screens[gameState.status] || <WaitingScreen {...shared} />}
+      {/* De host ziet dit uiteraard niet zelf (die is net weg) — dit is puur
+          voor de gasten, zodat een bevroren scherm niet als een bug aanvoelt. */}
+      {!session.isHost && !!gameState.hostAwaySince && (
+        <View style={styles.awayBanner} pointerEvents="none">
+          <Text style={styles.awayBannerText}>⏳ Host is even weg... het spel wacht.</Text>
+        </View>
+      )}
+    </>
+  );
 }
+
+const styles = StyleSheet.create({
+  awayBanner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.warning,
+    paddingTop: 50,
+    paddingBottom: 10,
+    alignItems: "center",
+  },
+  awayBannerText: { color: "#1a1a1a", fontWeight: "700", fontSize: 13 },
+  loading: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: { color: colors.textMuted, marginTop: 12, fontSize: 15 },
+});

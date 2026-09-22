@@ -1,371 +1,381 @@
 // src/screens/GameScreen.js
-import React, { useState, useEffect, useRef } from "react";
-import { useKeepAwake } from "expo-keep-awake";
+// Het hart van het spel: de tekenaar tekent, de rest raadt via de chat.
+// Dit scherm wordt gebruikt tijdens 'choosing' (woord kiezen) en 'playing'.
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
   Text,
-  Dimensions,
   TouchableOpacity,
-  TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Accelerometer } from "expo-sensors";
+import { useKeepAwake } from "expo-keep-awake";
 import * as Haptics from "expo-haptics";
-import Svg, { Polyline, Circle } from "react-native-svg";
+import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
-import { ref, set, onValue, update } from "firebase/database";
-
-const { width, height } = Dimensions.get("window");
-const BALL_RADIUS = 10;
-const SENSITIVITY = 15;
+import DrawingCanvas from "../components/DrawingCanvas";
+import ChatPanel from "../components/ChatPanel";
+import TimerBar from "../components/TimerBar";
+import ColorPicker from "../components/ColorPicker";
+import DrawingToolbar from "../components/DrawingToolbar";
+import LeaveButton from "../components/LeaveButton";
+import useTiltDrawing from "../hooks/useTiltDrawing";
+import { useCountdown } from "../hooks/useServerTime";
+import {
+  syncPoints,
+  clearDrawing,
+  undoLastPath,
+  publishCanvasSize,
+  normalizePaths,
+} from "../logic/drawing";
+import { startDrawingTurn, sendGuess } from "../logic/room";
+import { colors, radius, INK_COLORS } from "../theme";
 
 export default function GameScreen({
-  role,
   roomCode,
-  wordToDraw,
-  appState,
-  paths,
-  setPaths,
-  setAppState,
+  playerId,
+  nickname,
+  gameState,
+  players,
+  isHost,
+  onLeave,
+  settings,
+  serverNow,
+  onCorrectGuess,
 }) {
   useKeepAwake();
 
-  const [guessInput, setGuessInput] = useState("");
-  const [drawState, setDrawState] = useState("waiting");
-  const [position, setPosition] = useState({ x: width / 2, y: height / 2 });
-  const [isPenLifted, setIsPenLifted] = useState(false);
+  const isDrawer = gameState?.currentDrawerId === playerId;
+  const isChoosing = gameState?.status === "choosing";
+  const isPlaying = gameState?.status === "playing";
 
-  const posRef = useRef({ x: width / 2, y: height / 2 });
-  const pathsRef = useRef([]);
-  const drawStateRef = useRef("waiting");
-  const penLiftedRef = useRef(false);
-  const lastSyncTime = useRef(0);
-  const syncedPathIndexRef = useRef(-1);
-  const syncedPointCountRef = useRef(0);
+  const [remoteDrawing, setRemoteDrawing] = useState(null);
+  const [chat, setChat] = useState({});
+  const [guessed, setGuessed] = useState({});
+  const [inkColor, setInkColor] = useState(INK_COLORS[0]);
+  const canvasSize = useRef(null);
+
+  const msLeft = useCountdown(gameState?.phaseEndsAt, serverNow);
+  const haveGuessed = !!guessed[playerId];
+
+  // --------------------------------------------------------------- Tekenen
+
+  const handleSyncPoints = useCallback(
+    (payload) => syncPoints({ code: roomCode, ...payload }),
+    [roomCode],
+  );
+  const handleClearRemote = useCallback(
+    () => clearDrawing({ code: roomCode }),
+    [roomCode],
+  );
+  const handleUndoRemote = useCallback(
+    (pathIndex) => undoLastPath({ code: roomCode, pathIndex }),
+    [roomCode],
+  );
+
+  const {
+    paths: localPaths,
+    position,
+    drawState,
+    isPenLifted,
+    canUndo,
+    handleTouchStart,
+    handleTouchEnd,
+    handleLayout,
+    clear,
+    undo,
+  } = useTiltDrawing({
+    enabled: isDrawer && isPlaying,
+    color: inkColor,
+    onSyncPoints: handleSyncPoints,
+    onClearRemote: handleClearRemote,
+    onUndoRemote: handleUndoRemote,
+  });
+
+  // Nieuwe beurt (nieuw woord): begin met een leeg canvas.
+  useEffect(() => {
+    clear();
+  }, [gameState?.currentWord, gameState?.currentDrawerId, clear]);
+
+  // De raders schalen de tekening naar hun eigen scherm. Daarvoor moeten ze
+  // weten hoe groot het canvas van de tekenaar is.
+  const onCanvasLayout = useCallback(
+    (event) => {
+      handleLayout(event);
+      const { width, height } = event.nativeEvent.layout;
+      canvasSize.current = { width, height };
+      if (isDrawer) publishCanvasSize({ code: roomCode, width, height });
+    },
+    [handleLayout, isDrawer, roomCode],
+  );
 
   useEffect(() => {
-    pathsRef.current = paths;
-  }, [paths]);
+    if (!isDrawer || !isPlaying || !canvasSize.current) return;
+    publishCanvasSize({ code: roomCode, ...canvasSize.current });
+  }, [isDrawer, isPlaying, roomCode, gameState?.currentWord]);
+
+  // ---------------------------------------------------------- Live data
+
   useEffect(() => {
-    drawStateRef.current = drawState;
-  }, [drawState]);
-  useEffect(() => {
-    penLiftedRef.current = isPenLifted;
-  }, [isPenLifted]);
+    if (!roomCode) return;
+    const unsubscribers = [
+      onValue(ref(db, `rooms/${roomCode}/drawing`), (snap) =>
+        setRemoteDrawing(snap.val()),
+      ),
+      onValue(ref(db, `rooms/${roomCode}/chat`), (snap) =>
+        setChat(snap.val() || {}),
+      ),
+      onValue(ref(db, `rooms/${roomCode}/turn/guessed`), (snap) =>
+        setGuessed(snap.val() || {}),
+      ),
+    ];
+    return () => unsubscribers.forEach((off) => off());
+  }, [roomCode]);
 
-  const submitGuess = () => {
-    if (!guessInput) return;
-    const roomRef = ref(db, `rooms/${roomCode}`);
+  const messages = useMemo(
+    () =>
+      Object.entries(chat)
+        .map(([id, message]) => ({ id, ...message }))
+        .sort((a, b) => (a.at || 0) - (b.at || 0)),
+    [chat],
+  );
 
-    onValue(
-      roomRef,
-      (snapshot) => {
-        const data = snapshot.val();
+  const remotePaths = useMemo(
+    () => normalizePaths(remoteDrawing?.paths),
+    [remoteDrawing],
+  );
 
-        // Controleer of de gok klopt met het nieuwe gameState adres
-        if (
-          data &&
-          data.gameState &&
-          guessInput.toUpperCase().trim() === data.gameState.currentWord
-        ) {
-          // Het geluid wordt in App.js afgespeeld zodra 'winner' true wordt,
-          // zodat het niet wordt afgebroken door de wissel naar WinScreen.
-          // Zet de winnaar in de gameState
-          update(ref(db, `rooms/${roomCode}/gameState`), { winner: true });
-        } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert("Helaas!", "Dat is niet het juiste woord.");
-          setGuessInput("");
-        }
-      },
-      { onlyOnce: true },
-    );
+  const viewBox = useMemo(() => {
+    const size = remoteDrawing?.canvas;
+    if (isDrawer || !size?.width || !size?.height) return undefined;
+    return `0 0 ${size.width} ${size.height}`;
+  }, [isDrawer, remoteDrawing]);
+
+  // ------------------------------------------------------------ Acties
+
+  const handleChooseWord = (word) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    startDrawingTurn({ code: roomCode, word, gameState, serverNow });
   };
 
-  const quitSolo = () => {
-    setPaths([]);
-    setAppState("lobby");
-  };
-
-  useEffect(() => {
-    Accelerometer.setUpdateInterval(16);
-    const subscription = Accelerometer.addListener(({ x, y, z }) => {
-      if (appState !== "playing") return;
-      if (role !== "host" && role !== "solo") return;
-
-      const gForce = Math.sqrt(x * x + y * y + z * z);
-      if (gForce > 2.2 && drawStateRef.current === "drawing") {
+  // useCallback is hier belangrijk: tijdens het tekenen rendert dit scherm
+  // ~60x per seconde. Zonder dit zou de (memo'de) chat elke keer meerenderen.
+  const handleSend = useCallback(
+    async (text) => {
+      const result = await sendGuess({
+        code: roomCode,
+        playerId,
+        name: nickname,
+        text,
+        gameState,
+        serverNow,
+      });
+      if (result.correct && !result.already) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setDrawState("waiting");
-        setPaths([]);
-        if (role === "host" && roomCode)
-          set(ref(db, `rooms/${roomCode}/drawing/paths`), []);
-        syncedPathIndexRef.current = -1;
-        syncedPointCountRef.current = 0;
-        return;
+        onCorrectGuess?.(); // het "ding"-geluidje, alleen voor jezelf
       }
+    },
+    [roomCode, playerId, nickname, gameState, serverNow, onCorrectGuess],
+  );
 
-      if (drawStateRef.current === "waiting") return;
+  // ------------------------------------------------------------- Weergave
 
-      let newX = posRef.current.x + x * SENSITIVITY;
-      let newY = posRef.current.y - y * SENSITIVITY;
-      let bounced = false;
+  const guessers = Object.keys(players || {}).filter(
+    (id) => id !== gameState?.currentDrawerId,
+  );
+  const guessCount = Object.keys(guessed).length;
+  const drawerName = players?.[gameState?.currentDrawerId]?.name || "Speler";
+  const word = gameState?.currentWord || "";
 
-      if (newX < BALL_RADIUS) {
-        newX = BALL_RADIUS;
-        bounced = true;
-      }
-      if (newX > width - BALL_RADIUS) {
-        newX = width - BALL_RADIUS;
-        bounced = true;
-      }
-      if (newY < BALL_RADIUS) {
-        newY = BALL_RADIUS;
-        bounced = true;
-      }
-      if (newY > height - 150 - BALL_RADIUS) {
-        newY = height - 150 - BALL_RADIUS;
-        bounced = true;
-      }
+  // Raders zien alleen streepjes, tenzij ze het al geraden hebben.
+  const wordDisplay = isChoosing
+    ? "• • •"
+    : isDrawer || haveGuessed
+      ? word
+      : word
+          .split("")
+          .map((char) => (char === " " ? "  " : "_"))
+          .join(" ");
 
-      if (bounced) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      const newPos = { x: newX, y: newY };
-      posRef.current = newPos;
-      setPosition(newPos);
-
-      if (!penLiftedRef.current && pathsRef.current.length > 0) {
-        const currentPaths = [...pathsRef.current];
-        const lastPathIndex = currentPaths.length - 1;
-        const lastPoint =
-          currentPaths[lastPathIndex].points[
-            currentPaths[lastPathIndex].points.length - 1
-          ];
-
-        if (
-          lastPoint &&
-          Math.hypot(newX - lastPoint.x, newY - lastPoint.y) > 2
-        ) {
-          currentPaths[lastPathIndex].points.push(newPos);
-          setPaths(currentPaths);
-
-          if (role === "host" && roomCode) {
-            // Nieuwe lijn (na optillen)? Begin de teller opnieuw, anders
-            // slaan we per ongeluk de eerste punten van de nieuwe lijn over.
-            if (syncedPathIndexRef.current !== lastPathIndex) {
-              syncedPathIndexRef.current = lastPathIndex;
-              syncedPointCountRef.current = 0;
-            }
-
-            const now = Date.now();
-            if (now - lastSyncTime.current > 100) {
-              const allPoints = currentPaths[lastPathIndex].points;
-              const newPoints = allPoints.slice(syncedPointCountRef.current);
-
-              if (newPoints.length > 0) {
-                // Stuur alleen de NIEUWE punten (gemergd op hun eigen index)
-                // i.p.v. steeds de hele, groeiende puntenlijst opnieuw te
-                // verzenden. Dat laatste veroorzaakte de vertraging bij
-                // lange lijnen: elke sync-tick werd het payload groter.
-                const pathRef = `rooms/${roomCode}/drawing/paths/${lastPathIndex}`;
-                const updates = {
-                  [`${pathRef}/color`]: currentPaths[lastPathIndex].color,
-                };
-                newPoints.forEach((p, i) => {
-                  updates[`${pathRef}/points/${syncedPointCountRef.current + i}`] = p;
-                });
-                update(ref(db), updates);
-                syncedPointCountRef.current = allPoints.length;
-              }
-              lastSyncTime.current = now;
-            }
-          }
-        }
-      }
-    });
-
-    return () => subscription.remove();
-  }, [role, appState, roomCode]);
-
-  const handleTouchStart = (e) => {
-    if ((role !== "host" && role !== "solo") || appState !== "playing") return;
-    const { locationX, locationY } = e.nativeEvent;
-    const initialPos = { x: locationX, y: locationY };
-
-    if (drawState === "waiting") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      posRef.current = initialPos;
-      setPosition(initialPos);
-      setDrawState("drawing");
-      setPaths([{ color: "#007AFF", points: [initialPos] }]);
-    } else {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setIsPenLifted(true);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if ((role !== "host" && role !== "solo") || appState !== "playing") return;
-    if (drawState === "drawing" && isPenLifted) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setIsPenLifted(false);
-      setPaths([...paths, { color: "#007AFF", points: [posRef.current] }]);
-    }
-  };
+  const chatDisabled = isDrawer || haveGuessed || !isPlaying;
+  const chatPlaceholder = isDrawer
+    ? "Jij tekent — jij mag niet raden 😉"
+    : haveGuessed
+      ? "Je hebt het al geraden! 🎉"
+      : "Typ je gok...";
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      {/* HEADER LOGICA (Past zich aan op basis van de Rol) */}
       <View style={styles.header}>
-        {role === "host" && (
-          <Text style={styles.headerText}>
-            Jij tekent:{" "}
-            <Text style={{ fontWeight: "bold", color: "#FF3B30" }}>
-              {wordToDraw}
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.round}>
+              Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3}
             </Text>
-          </Text>
+            <Text style={styles.guessCount}>
+              {guessCount}/{guessers.length} geraden
+            </Text>
+          </View>
+          <LeaveButton isHost={isHost} onPress={onLeave} />
+        </View>
+
+        <Text style={styles.word}>{wordDisplay}</Text>
+        <Text style={styles.drawerLine}>
+          {isDrawer ? "Jij tekent" : `${drawerName} tekent`}
+          {!isDrawer && word && !isChoosing ? ` · ${word.length} letters` : ""}
+        </Text>
+
+        {isPlaying && (
+          <TimerBar msLeft={msLeft} totalMs={gameState?.turnDurationMs} />
         )}
-        {role === "guest" && (
-          <Text style={styles.headerText}>Raad wat de ander tekent!</Text>
-        )}
-        {role === "solo" && (
-          <View style={styles.soloHeader}>
-            <Text style={styles.headerText}>Sandbox Modus</Text>
-            <TouchableOpacity onPress={quitSolo} style={styles.quitButton}>
-              <Text style={styles.quitText}>Stop</Text>
-            </TouchableOpacity>
+      </View>
+
+      {isDrawer && isPlaying && (
+        <ColorPicker value={inkColor} onChange={setInkColor} />
+      )}
+
+      <DrawingCanvas
+        paths={isDrawer ? localPaths : remotePaths}
+        position={position}
+        showBall={isDrawer && drawState === "drawing"}
+        isPenLifted={isPenLifted}
+        ballColor={inkColor}
+        interactive={isDrawer && isPlaying}
+        viewBox={viewBox}
+        onLayout={onCanvasLayout}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        hint={
+          isDrawer && isPlaying && drawState === "waiting"
+            ? "Tik om het balletje te laten vallen"
+            : undefined
+        }
+      >
+        {isChoosing && (
+          <View style={styles.overlay}>
+            {isDrawer ? (
+              <>
+                <Text style={styles.overlayTitle}>Kies een woord</Text>
+                <Text style={styles.overlaySub}>
+                  Nog {Math.ceil(msLeft / 1000)}s — anders kiezen wij er een
+                </Text>
+                {(gameState?.wordChoices || []).map((choice) => (
+                  <TouchableOpacity
+                    key={choice}
+                    style={styles.wordButton}
+                    onPress={() => handleChooseWord(choice)}
+                  >
+                    <Text style={styles.wordButtonText}>{choice}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
+            ) : (
+              <>
+                <Text style={styles.overlayTitle}>
+                  {drawerName} kiest een woord...
+                </Text>
+                <Text style={styles.overlaySub}>Maak je klaar om te raden!</Text>
+              </>
+            )}
           </View>
         )}
-      </View>
+      </DrawingCanvas>
 
-      <View
-        style={[
-          styles.canvas,
-          {
-            backgroundColor:
-              (role === "host" || role === "solo") && drawState === "waiting"
-                ? "#2c2c2e"
-                : "#1c1c1e",
-          },
-        ]}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={handleTouchStart}
-        onResponderRelease={handleTouchEnd}
-      >
-        {(role === "host" || role === "solo") && drawState === "waiting" && (
-          <Text style={styles.promptText}>
-            Tap to drop the ball & start drawing
-          </Text>
-        )}
-
-        <Svg height="100%" width="100%">
-          {paths.map((pathObj, index) => {
-            if (!pathObj || !pathObj.points) return null;
-            const pointsString = pathObj.points
-              .map((p) => `${p.x},${p.y}`)
-              .join(" ");
-            return (
-              <Polyline
-                key={index}
-                points={pointsString}
-                fill="none"
-                stroke={pathObj.color}
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            );
-          })}
-          {(role === "host" || role === "solo") && drawState === "drawing" && (
-            <Circle
-              cx={position.x}
-              cy={position.y}
-              r={BALL_RADIUS}
-              fill="#007AFF"
-              opacity={isPenLifted ? 0.4 : 1}
-            />
-          )}
-        </Svg>
-      </View>
-
-      {/* RAADBALK (Alleen voor de rader) */}
-      {role === "guest" && (
-        <View style={styles.guessContainer}>
-          <TextInput
-            style={styles.guessInput}
-            placeholder="Typ hier je gok..."
-            placeholderTextColor="#888"
-            value={guessInput}
-            onChangeText={setGuessInput}
-            autoCapitalize="characters"
-          />
-          <TouchableOpacity style={styles.guessButton} onPress={submitGuess}>
-            <Text style={styles.buttonText}>Raad!</Text>
-          </TouchableOpacity>
-        </View>
+      {isDrawer && isPlaying && (
+        <DrawingToolbar
+          onUndo={undo}
+          canUndo={canUndo}
+          onClear={clear}
+          canClear={localPaths.length > 0}
+        />
       )}
+
+      <ChatPanel
+        messages={messages}
+        onSend={handleSend}
+        disabled={chatDisabled}
+        placeholder={chatPlaceholder}
+      />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: "#111",
-    alignItems: "center",
+    paddingTop: 55,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.surface,
   },
-  headerText: { color: "#FFF", fontSize: 18, fontWeight: "600" },
-  soloHeader: {
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
-    paddingHorizontal: 30,
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
-  quitButton: {
-    backgroundColor: "#FF3B30",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  quitText: { color: "#FFF", fontWeight: "bold" },
-  canvas: { flex: 1 },
-  promptText: {
-    position: "absolute",
-    top: "45%",
-    width: "100%",
+  round: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+  guessCount: { color: colors.success, fontSize: 13, fontWeight: "600" },
+  word: {
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: "bold",
+    letterSpacing: 4,
     textAlign: "center",
-    color: "#8e8e93",
-    fontSize: 18,
   },
-  guessContainer: {
-    flexDirection: "row",
-    padding: 20,
-    backgroundColor: "#111",
-    paddingBottom: 40,
+  drawerLine: {
+    color: colors.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: 10,
   },
-  guessInput: {
-    flex: 1,
-    backgroundColor: "#2c2c2e",
-    color: "#FFF",
-    padding: 15,
-    borderRadius: 10,
-    marginRight: 10,
-    fontSize: 16,
-  },
-  guessButton: {
-    backgroundColor: "#34C759",
-    padding: 15,
-    borderRadius: 10,
+  overlay: {
+    // Expliciet uitgeschreven: StyleSheet.absoluteFillObject bestaat niet meer
+    // in React Native 0.86. Spreaden van undefined geeft geen foutmelding,
+    // waardoor dit blok stilletjes zijn absolute positie verloor en onder het
+    // canvas viel (en door overflow:hidden onzichtbaar werd).
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.85)",
     justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
   },
-  buttonText: { color: "#FFF", fontSize: 18, fontWeight: "bold" },
+  overlayTitle: {
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  overlaySub: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: 6,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  wordButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    borderRadius: radius.md,
+    marginBottom: 12,
+    width: "100%",
+    alignItems: "center",
+  },
+  wordButtonText: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: "bold",
+    letterSpacing: 2,
+  },
 });
