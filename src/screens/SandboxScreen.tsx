@@ -1,4 +1,4 @@
-// src/screens/SandboxScreen.js
+// src/screens/SandboxScreen.tsx
 // Vrij tekenen om de besturing onder de knie te krijgen. Geen Firebase.
 // Kan de tekening ook opslaan in de fotobibliotheek of delen.
 
@@ -12,21 +12,25 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
-import DrawingCanvas from "../components/DrawingCanvas";
-import ColorPicker from "../components/ColorPicker";
-import DrawingToolbar from "../components/DrawingToolbar";
-import useTiltDrawing from "../hooks/useTiltDrawing";
-import { saveDrawingToLibrary, shareDrawing } from "../logic/exportDrawing";
-import { colors, radius, spacing, shadow, INK_COLORS } from "../theme";
+import DrawingCanvas from "@/components/drawing-canvas";
+import ColorPicker from "@/components/color-picker";
+import DrawingToolbar from "@/components/drawing-toolbar";
+import useTiltDrawing from "@/hooks/use-tilt-drawing";
+import { saveDrawingToLibrary, shareDrawing } from "@/logic/export-drawing";
+import { radius, spacing, shadow, INK_COLORS } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import type { LayoutChangeEvent } from "react-native";
 
-export default function SandboxScreen({ onExit }) {
+export default function SandboxScreen({ onExit }: { onExit: () => void }) {
   useKeepAwake();
 
   const [inkColor, setInkColor] = useState(INK_COLORS[0]);
   const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const svgRef = useRef(null);
-  const canvasSize = useRef(null);
+  const canvasSize = useRef<{ width: number; height: number } | null>(null);
+  const theme = useTheme();
 
   const {
     paths,
@@ -42,7 +46,7 @@ export default function SandboxScreen({ onExit }) {
   } = useTiltDrawing({ enabled: true, color: inkColor });
 
   const onCanvasLayout = useCallback(
-    (event) => {
+    (event: LayoutChangeEvent) => {
       handleLayout(event);
       const { width, height } = event.nativeEvent.layout;
       canvasSize.current = { width, height };
@@ -88,17 +92,24 @@ export default function SandboxScreen({ onExit }) {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Sandbox</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface }]}>
+        <ThemedText style={styles.title}>Sandbox</ThemedText>
         <TouchableOpacity
-          style={[styles.finishButton, !hasDrawing && styles.finishButtonDisabled]}
+          style={[
+            styles.finishButton,
+            { backgroundColor: theme.success },
+            !hasDrawing && styles.finishButtonDisabled,
+          ]}
           onPress={() => setShowExport(true)}
           disabled={!hasDrawing}
         >
           <Text style={styles.finishText}>Klaar ✓</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.exitButton} onPress={onExit}>
+        <TouchableOpacity
+          style={[styles.exitButton, { backgroundColor: theme.danger }]}
+          onPress={onExit}
+        >
           <Text style={styles.actionText}>Stop</Text>
         </TouchableOpacity>
       </View>
@@ -130,22 +141,35 @@ export default function SandboxScreen({ onExit }) {
         canClear={hasDrawing}
       />
 
-      <Text style={styles.tip}>Kantel om te rollen · Tik om je pen op te tillen</Text>
+      <ThemedText
+        themeColor="textDim"
+        style={[styles.tip, { backgroundColor: theme.surface }]}
+      >
+        Kantel om te rollen · Tik om je pen op te tillen
+      </ThemedText>
 
       {showExport && (
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>Mooi getekend! 🎨</Text>
-            <Text style={styles.sheetSub}>Wat wil je ermee doen?</Text>
+          <View style={[styles.sheet, { backgroundColor: theme.surfaceLight }]}>
+            <ThemedText style={styles.sheetTitle}>Mooi getekend! 🎨</ThemedText>
+            <ThemedText themeColor="textMuted" style={styles.sheetSub}>
+              Wat wil je ermee doen?
+            </ThemedText>
 
             {exporting ? (
-              <ActivityIndicator color={colors.primary} style={styles.spinner} />
+              <ActivityIndicator color={theme.primary} style={styles.spinner} />
             ) : (
               <>
-                <TouchableOpacity style={styles.sheetButton} onPress={handleSave}>
+                <TouchableOpacity
+                  style={[styles.sheetButton, { backgroundColor: theme.primary }]}
+                  onPress={handleSave}
+                >
                   <Text style={styles.sheetButtonText}>📷 Opslaan in Foto's</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.sheetButton} onPress={handleShare}>
+                <TouchableOpacity
+                  style={[styles.sheetButton, { backgroundColor: theme.primary }]}
+                  onPress={handleShare}
+                >
                   <Text style={styles.sheetButtonText}>📤 Delen</Text>
                 </TouchableOpacity>
               </>
@@ -156,7 +180,9 @@ export default function SandboxScreen({ onExit }) {
               onPress={() => setShowExport(false)}
               disabled={exporting}
             >
-              <Text style={styles.sheetCloseText}>Terug naar tekenen</Text>
+              <ThemedText themeColor="textMuted" style={styles.sheetCloseText}>
+                Terug naar tekenen
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </View>
@@ -166,39 +192,34 @@ export default function SandboxScreen({ onExit }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingTop: 60,
     paddingBottom: spacing.md + 3,
     paddingHorizontal: spacing.xl,
-    backgroundColor: colors.surface,
     gap: spacing.sm + 2,
   },
-  title: { color: colors.text, fontSize: 20, fontWeight: "bold", flex: 1 },
+  title: { fontSize: 20, fontWeight: "bold", flex: 1 },
   finishButton: {
-    backgroundColor: colors.success,
     paddingHorizontal: spacing.md + 3,
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
   },
   finishButtonDisabled: { opacity: 0.35 },
-  finishText: { color: colors.text, fontWeight: "bold" },
+  finishText: { color: "#FFFFFF", fontWeight: "bold" },
   exitButton: {
-    backgroundColor: colors.danger,
     paddingHorizontal: spacing.md + 3,
     paddingVertical: spacing.sm,
     borderRadius: radius.sm,
   },
-  actionText: { color: colors.text, fontWeight: "bold" },
+  actionText: { color: "#FFFFFF", fontWeight: "bold" },
   tip: {
-    color: colors.textDim,
     fontSize: 12,
     textAlign: "center",
     paddingVertical: spacing.md + 2,
     paddingHorizontal: spacing.xl,
-    backgroundColor: colors.surface,
   },
   overlay: {
     position: "absolute",
@@ -212,30 +233,27 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
   },
   sheet: {
-    backgroundColor: colors.surfaceLight,
     borderRadius: radius.lg,
     padding: spacing.xl + 6,
     width: "100%",
     alignItems: "center",
     ...shadow.md,
   },
-  sheetTitle: { color: colors.text, fontSize: 22, fontWeight: "bold" },
+  sheetTitle: { fontSize: 22, fontWeight: "bold" },
   sheetSub: {
-    color: colors.textMuted,
     fontSize: 14,
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
   },
   sheetButton: {
-    backgroundColor: colors.primary,
     paddingVertical: spacing.lg - 1,
     borderRadius: radius.md,
     width: "100%",
     alignItems: "center",
     marginBottom: spacing.md,
   },
-  sheetButtonText: { color: colors.text, fontSize: 16, fontWeight: "bold" },
+  sheetButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
   spinner: { marginVertical: spacing.xl },
   sheetClose: { marginTop: spacing.xs + 2, padding: spacing.sm + 2 },
-  sheetCloseText: { color: colors.textMuted, fontSize: 14 },
+  sheetCloseText: { fontSize: 14 },
 });

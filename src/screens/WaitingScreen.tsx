@@ -1,4 +1,4 @@
-// src/screens/WaitingScreen.js
+// src/screens/WaitingScreen.tsx
 // De wachtruimte. De host stelt hier het spel in en start het; iedereen kan
 // alvast chatten.
 
@@ -15,25 +15,55 @@ import {
 } from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
-import PlayerRow from "../components/PlayerRow";
-import ChatPanel from "../components/ChatPanel";
-import { WORD_PACKS, PACK_KEYS } from "../data/words";
+import PlayerRow from "@/components/player-row";
+import ChatPanel from "@/components/chat-panel";
+import { WORD_PACKS, PACK_KEYS } from "@/data/words";
 import {
   kickPlayer,
   updateSettings,
   startGame,
   sendChatMessage,
   DEFAULT_SETTINGS,
-} from "../logic/room";
-import { colors, radius, spacing } from "../theme";
+} from "@/logic/room";
+import { radius, spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useLeaveRoom } from "@/hooks/use-leave-room";
+import { serverNow } from "@/hooks/use-server-time";
+import { ThemedText } from "@/components/themed-text";
+import type { ChatMap, ChatMessageWithId } from "@/types/game";
+import type { WordPackKey } from "@/data/words";
+
+/**
+ * Generiek: `T` is het type van één optie (een getal voor rondes/tijd, een
+ * pakket-sleutel voor woordpakketten).
+ */
+type OptionRowProps<T extends string | number> = {
+  label: string;
+  options: readonly T[];
+  value: T;
+  onSelect: (value: T) => void;
+  format?: (value: T) => string;
+  disabled?: boolean;
+};
 
 const ROUND_OPTIONS = [1, 2, 3, 4, 5];
 const TIMER_OPTIONS = [30, 45, 60, 90, 120];
 
-function OptionRow({ label, options, value, onSelect, format, disabled }) {
+function OptionRow<T extends string | number>({
+  label,
+  options,
+  value,
+  onSelect,
+  format,
+  disabled,
+}: OptionRowProps<T>) {
+  const theme = useTheme();
+
   return (
     <View style={styles.settingBlock}>
-      <Text style={styles.settingLabel}>{label}</Text>
+      <ThemedText style={styles.settingLabel}>{label}</ThemedText>
       <View style={styles.optionRow}>
         {options.map((option) => {
           const selected = option === value;
@@ -42,14 +72,21 @@ function OptionRow({ label, options, value, onSelect, format, disabled }) {
               key={option}
               style={[
                 styles.option,
-                selected && styles.optionSelected,
+                { backgroundColor: theme.surfaceLighter },
+                selected && {
+                  backgroundColor: theme.primary,
+                  borderColor: theme.primary,
+                },
                 disabled && styles.optionDisabled,
               ]}
               onPress={() => !disabled && onSelect(option)}
               disabled={disabled}
             >
               <Text
-                style={[styles.optionText, selected && styles.optionTextSelected]}
+                style={[
+                  styles.optionText,
+                  { color: selected ? "#FFFFFF" : theme.textMuted },
+                ]}
               >
                 {format ? format(option) : option}
               </Text>
@@ -61,27 +98,26 @@ function OptionRow({ label, options, value, onSelect, format, disabled }) {
   );
 }
 
-export default function WaitingScreen({
-  roomCode,
-  playerId,
-  nickname,
-  isHost,
-  players,
-  settings,
-  serverNow,
-  onLeave,
-}) {
+export default function WaitingScreen() {
+  const roomCode = useSessionStore((state) => state.code);
+  const playerId = useSessionStore((state) => state.playerId);
+  const nickname = useSessionStore((state) => state.nickname);
+  const isHost = useSessionStore((state) => state.isHost);
+  const players = useRoomStore((state) => state.players);
+  const settings = useRoomStore((state) => state.settings);
+  const onLeave = useLeaveRoom();
+
   const activeSettings = settings || DEFAULT_SETTINGS;
   const playerList = Object.entries(players || {}).map(([id, p]) => ({
     id,
     ...p,
   }));
 
-  const [chat, setChat] = useState({});
+  const [chat, setChat] = useState<ChatMap>({});
   useEffect(() => {
     if (!roomCode) return;
     const unsubscribe = onValue(ref(db, `rooms/${roomCode}/chat`), (snap) =>
-      setChat(snap.val() || {}),
+      setChat((snap.val() as ChatMap | null) || {}),
     );
     return () => unsubscribe();
   }, [roomCode]);
@@ -89,15 +125,18 @@ export default function WaitingScreen({
   const messages = useMemo(
     () =>
       Object.entries(chat)
-        .map(([id, message]) => ({ id, ...message }))
+        .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
         .sort((a, b) => (a.at || 0) - (b.at || 0)),
     [chat],
   );
 
-  const handleSendChat = (text) =>
+  const handleSendChat = (text: string) =>
     sendChatMessage({ code: roomCode, playerId, name: nickname, text });
 
-  const patch = (change) => updateSettings({ code: roomCode, patch: change });
+  const theme = useTheme();
+
+  const patch = (change: Partial<typeof activeSettings>) =>
+    updateSettings({ code: roomCode, patch: change });
 
   const handleStart = () => {
     if (playerList.length < 2) {
@@ -117,7 +156,7 @@ export default function WaitingScreen({
     startGame({ code: roomCode, players, settings: activeSettings, serverNow });
   };
 
-  const confirmKick = (player) =>
+  const confirmKick = (player: { id: string; name: string }) =>
     Alert.alert("Speler verwijderen", `${player.name} uit de kamer zetten?`, [
       { text: "Annuleren", style: "cancel" },
       {
@@ -130,15 +169,24 @@ export default function WaitingScreen({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.codeLabel}>Kamercode</Text>
-          <Text style={styles.code}>{roomCode}</Text>
+          <ThemedText themeColor="textMuted" style={styles.codeLabel}>
+            Kamercode
+          </ThemedText>
+          <ThemedText themeColor="primary" style={styles.code}>
+            {roomCode}
+          </ThemedText>
         </View>
-        <TouchableOpacity onPress={onLeave} style={styles.leaveButton}>
-          <Text style={styles.leaveText}>{isHost ? "Sluiten" : "Verlaten"}</Text>
+        <TouchableOpacity
+          onPress={onLeave}
+          style={[styles.leaveButton, { backgroundColor: theme.surfaceLighter }]}
+        >
+          <ThemedText themeColor="danger" style={styles.leaveText}>
+            {isHost ? "Sluiten" : "Verlaten"}
+          </ThemedText>
         </TouchableOpacity>
       </View>
 
@@ -146,9 +194,9 @@ export default function WaitingScreen({
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text style={styles.sectionTitle}>
+        <ThemedText themeColor="textMuted" style={styles.sectionTitle}>
           Spelers ({playerList.length})
-        </Text>
+        </ThemedText>
         {playerList.map((player) => (
           <PlayerRow
             key={player.id}
@@ -162,7 +210,9 @@ export default function WaitingScreen({
           />
         ))}
 
-        <Text style={styles.sectionTitle}>Instellingen</Text>
+        <ThemedText themeColor="textMuted" style={styles.sectionTitle}>
+          Instellingen
+        </ThemedText>
         <OptionRow
           label="Aantal rondes"
           options={ROUND_OPTIONS}
@@ -181,31 +231,45 @@ export default function WaitingScreen({
         <OptionRow
           label="Woordpakket"
           options={PACK_KEYS}
-          value={activeSettings.wordPack}
+          // Cast omdat wat in Firebase staat élke string kan zijn (bv. een
+          // pakketnaam uit een oudere versie); pickWords valt dan terug op
+          // het standaardpakket.
+          value={activeSettings.wordPack as WordPackKey}
           onSelect={(value) => patch({ wordPack: value })}
-          format={(key) => `${WORD_PACKS[key].emoji} ${WORD_PACKS[key].label}`}
+          format={(key: WordPackKey) =>
+            `${WORD_PACKS[key].emoji} ${WORD_PACKS[key].label}`
+          }
           disabled={!isHost}
         />
 
-        <View style={styles.rules}>
-          <Text style={styles.rulesTitle}>📖 Spelregels</Text>
-          <Text style={styles.rulesText}>
+        <View
+          style={[
+            styles.rules,
+            { backgroundColor: theme.surfaceLight, borderColor: theme.success },
+          ]}
+        >
+          <ThemedText themeColor="success" style={styles.rulesTitle}>
+            📖 Spelregels
+          </ThemedText>
+          <ThemedText style={styles.rulesText}>
             • Elke speler tekent één keer per ronde.
-          </Text>
-          <Text style={styles.rulesText}>
+          </ThemedText>
+          <ThemedText style={styles.rulesText}>
             • Raden gaat via de chat: hoe sneller, hoe meer punten (tot 1000).
-          </Text>
-          <Text style={styles.rulesText}>
+          </ThemedText>
+          <ThemedText style={styles.rulesText}>
             • Top 3 snelste raders krijgen een bonus (+300 / +200 / +100).
-          </Text>
-          <Text style={styles.rulesText}>
+          </ThemedText>
+          <ThemedText style={styles.rulesText}>
             • De tekenaar krijgt 100 punten per speler die het raadt.
-          </Text>
+          </ThemedText>
         </View>
       </ScrollView>
 
-      <View style={styles.chatSection}>
-        <Text style={styles.chatTitle}>💬 Chat</Text>
+      <View style={[styles.chatSection, { borderTopColor: theme.border }]}>
+        <ThemedText themeColor="textMuted" style={styles.chatTitle}>
+          💬 Chat
+        </ThemedText>
         <ChatPanel
           messages={messages}
           onSend={handleSendChat}
@@ -215,13 +279,16 @@ export default function WaitingScreen({
 
       <View style={styles.footer}>
         {isHost ? (
-          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+          <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: theme.primary }]}
+            onPress={handleStart}
+          >
             <Text style={styles.startText}>START SPEL</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={styles.waitingText}>
+          <ThemedText themeColor="textMuted" style={styles.waitingText}>
             Wachten tot de host het spel start...
-          </Text>
+          </ThemedText>
         )}
       </View>
     </KeyboardAvoidingView>
@@ -229,7 +296,7 @@ export default function WaitingScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingTop: 60 },
+  container: { flex: 1, paddingTop: 60 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -237,27 +304,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.lg,
   },
-  codeLabel: { color: colors.textMuted, fontSize: 13 },
+  codeLabel: { fontSize: 13 },
   code: {
-    color: colors.primary,
     fontSize: 34,
     fontWeight: "800",
     letterSpacing: 6,
   },
   leaveButton: {
-    backgroundColor: colors.surfaceLighter,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm + 2,
     borderRadius: radius.sm,
   },
-  leaveText: { color: colors.danger, fontWeight: "bold" },
+  leaveText: { fontWeight: "bold" },
   scroll: { flex: 1 },
-  chatSection: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
+  chatSection: { borderTopWidth: 1 },
   chatTitle: {
-    color: colors.textMuted,
     fontSize: 13,
     fontWeight: "bold",
     paddingHorizontal: spacing.xl,
@@ -265,7 +326,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
   sectionTitle: {
-    color: colors.textMuted,
     fontSize: 14,
     fontWeight: "bold",
     textTransform: "uppercase",
@@ -273,58 +333,46 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   settingBlock: { marginBottom: spacing.lg },
-  settingLabel: { color: colors.text, fontSize: 15, marginBottom: spacing.sm },
+  settingLabel: { fontSize: 15, marginBottom: spacing.sm },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: {
-    backgroundColor: colors.surfaceLighter,
     paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md + 2,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: "transparent",
   },
-  optionSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
   optionDisabled: { opacity: 0.5 },
-  optionText: { color: colors.textMuted, fontWeight: "600" },
-  optionTextSelected: { color: colors.text },
+  optionText: { fontWeight: "600" },
   rules: {
-    backgroundColor: colors.surfaceLight,
     padding: spacing.lg + 2,
     borderRadius: radius.md,
     marginTop: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.success,
   },
   rulesTitle: {
-    color: colors.success,
     fontSize: 17,
     fontWeight: "bold",
     marginBottom: spacing.md,
   },
   rulesText: {
-    color: colors.text,
     fontSize: 14,
     marginBottom: spacing.sm - 2,
     lineHeight: 20,
   },
   footer: { padding: spacing.xl, paddingBottom: 40 },
   startButton: {
-    backgroundColor: colors.primary,
     padding: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
   },
   startText: {
-    color: colors.text,
+    color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "bold",
     letterSpacing: 1,
   },
   waitingText: {
-    color: colors.textMuted,
     fontSize: 16,
     fontStyle: "italic",
     textAlign: "center",

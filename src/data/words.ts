@@ -1,4 +1,4 @@
-// src/data/words.js
+// src/data/words.ts
 // Woordpakketten. Woorden zijn expres simpel gehouden: je tekent met een
 // rollend balletje, dus details zijn zo goed als onmogelijk.
 
@@ -54,22 +54,28 @@ export const WORD_PACKS = {
   },
 };
 
-export const DEFAULT_PACK = "algemeen";
+export type WordPackKey = keyof typeof WORD_PACKS;
 
-export const PACK_KEYS = Object.keys(WORD_PACKS);
+export const DEFAULT_PACK: WordPackKey = "algemeen";
+
+export const PACK_KEYS = Object.keys(WORD_PACKS) as WordPackKey[];
 
 /**
  * Kies `count` willekeurige woorden uit een pakket.
  * Woorden die al gebruikt zijn in dit spel worden overgeslagen; is het pakket
  * op, dan beginnen we gewoon opnieuw met de volledige lijst.
  */
-export function pickWords(packKey, usedWords = {}, count = 3) {
-  const pack = WORD_PACKS[packKey] || WORD_PACKS[DEFAULT_PACK];
+export function pickWords(
+  packKey: string,
+  usedWords: Record<string, boolean> = {},
+  count = 3,
+): string[] {
+  const pack = WORD_PACKS[packKey as WordPackKey] || WORD_PACKS[DEFAULT_PACK];
   let pool = pack.words.filter((w) => !usedWords[w]);
 
   if (pool.length < count) pool = [...pack.words];
 
-  const chosen = [];
+  const chosen: string[] = [];
   const remaining = [...pool];
   while (chosen.length < count && remaining.length > 0) {
     const i = Math.floor(Math.random() * remaining.length);

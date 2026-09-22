@@ -1,4 +1,4 @@
-// src/screens/PodiumScreen.js
+// src/screens/PodiumScreen.tsx
 // Het eindscherm: podium met de top 3, daaronder de volledige stand.
 
 import React, { useEffect } from "react";
@@ -10,37 +10,43 @@ import {
   ScrollView,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import PlayerRow from "../components/PlayerRow";
-import { toRanking } from "../logic/scoring";
-import { playAgain } from "../logic/room";
-import { colors, radius, spacing, shadow } from "../theme";
+import PlayerRow from "@/components/player-row";
+import { toRanking } from "@/logic/scoring";
+import { playAgain } from "@/logic/room";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useLeaveRoom } from "@/hooks/use-leave-room";
+import { radius, spacing, shadow } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
 
 const PODIUM_ORDER = [1, 0, 2]; // zilver links, goud in het midden, brons rechts
 const PODIUM_HEIGHTS = [110, 80, 60];
-const PODIUM_COLORS = [colors.gold, colors.silver, colors.bronze];
+const PODIUM_KEYS = ["gold", "silver", "bronze"] as const;
 const MEDALS = ["🥇", "🥈", "🥉"];
 
-export default function PodiumScreen({
-  roomCode,
-  players,
-  playerId,
-  isHost,
-  onLeave,
-}) {
+export default function PodiumScreen() {
+  const roomCode = useSessionStore((state) => state.code);
+  const playerId = useSessionStore((state) => state.playerId);
+  const isHost = useSessionStore((state) => state.isHost);
+  const players = useRoomStore((state) => state.players);
+  const onLeave = useLeaveRoom();
+
   const ranking = toRanking(players);
   const winner = ranking[0];
+  const theme = useTheme();
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>🏆 Eindstand</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ThemedText style={styles.title}>🏆 Eindstand</ThemedText>
       {!!winner && (
-        <Text style={styles.winner}>
+        <ThemedText themeColor="gold" style={styles.winner}>
           {winner.name} wint met {winner.score} punten!
-        </Text>
+        </ThemedText>
       )}
 
       <View style={styles.podium}>
@@ -49,17 +55,19 @@ export default function PodiumScreen({
           if (!player) return <View key={rank} style={styles.podiumSlot} />;
           return (
             <View key={rank} style={styles.podiumSlot}>
-              <Text style={styles.podiumMedal}>{MEDALS[rank]}</Text>
-              <Text style={styles.podiumName} numberOfLines={1}>
+              <ThemedText style={styles.podiumMedal}>{MEDALS[rank]}</ThemedText>
+              <ThemedText style={styles.podiumName} numberOfLines={1}>
                 {player.name}
-              </Text>
-              <Text style={styles.podiumScore}>{player.score}</Text>
+              </ThemedText>
+              <ThemedText themeColor="textMuted" style={styles.podiumScore}>
+                {player.score}
+              </ThemedText>
               <View
                 style={[
                   styles.podiumBlock,
                   {
                     height: PODIUM_HEIGHTS[rank],
-                    backgroundColor: PODIUM_COLORS[rank],
+                    backgroundColor: theme[PODIUM_KEYS[rank]],
                   },
                 ]}
               />
@@ -86,21 +94,21 @@ export default function PodiumScreen({
       <View style={styles.footer}>
         {isHost ? (
           <TouchableOpacity
-            style={styles.playAgain}
+            style={[styles.playAgain, { backgroundColor: theme.primary }]}
             onPress={() => playAgain({ code: roomCode, players })}
           >
             <Text style={styles.playAgainText}>NOG EEN KEER</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={styles.waiting}>
+          <ThemedText themeColor="textMuted" style={styles.waiting}>
             Wachten of de host nog een potje start...
-          </Text>
+          </ThemedText>
         )}
 
         <TouchableOpacity style={styles.leave} onPress={onLeave}>
-          <Text style={styles.leaveText}>
+          <ThemedText themeColor="danger" style={styles.leaveText}>
             {isHost ? "Kamer sluiten" : "Kamer verlaten"}
-          </Text>
+          </ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -110,19 +118,16 @@ export default function PodiumScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     paddingTop: 70,
     paddingHorizontal: spacing.xl,
     paddingBottom: 40,
   },
   title: {
-    color: colors.text,
     fontSize: 32,
     fontWeight: "bold",
     textAlign: "center",
   },
   winner: {
-    color: colors.gold,
     fontSize: 17,
     textAlign: "center",
     marginTop: spacing.xs + 2,
@@ -137,12 +142,11 @@ const styles = StyleSheet.create({
   podiumSlot: { flex: 1, alignItems: "center" },
   podiumMedal: { fontSize: 26 },
   podiumName: {
-    color: colors.text,
     fontSize: 14,
     fontWeight: "bold",
     marginTop: spacing.xs - 2,
   },
-  podiumScore: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm - 2 },
+  podiumScore: { fontSize: 13, marginBottom: spacing.sm - 2 },
   podiumBlock: {
     width: "100%",
     borderTopLeftRadius: radius.sm,
@@ -152,25 +156,23 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: spacing.md - 2 },
   footer: { marginTop: spacing.md },
   playAgain: {
-    backgroundColor: colors.primary,
     padding: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
     ...shadow.md,
   },
   playAgainText: {
-    color: colors.text,
+    color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "bold",
     letterSpacing: 1,
   },
   waiting: {
-    color: colors.textMuted,
     fontSize: 15,
     fontStyle: "italic",
     textAlign: "center",
     paddingVertical: spacing.md,
   },
   leave: { padding: spacing.md + 2, alignItems: "center" },
-  leaveText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
+  leaveText: { fontSize: 15, fontWeight: "600" },
 });

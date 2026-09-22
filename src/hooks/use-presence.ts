@@ -1,4 +1,4 @@
-// src/hooks/usePresence.js
+// src/hooks/use-presence.ts
 // Regelt wat er gebeurt als iemand de app sluit, backgroundt, of het netwerk
 // verliest — zie de opmerking bovenaan room.js voor waarom dit via Firebase's
 // onDisconnect() gaat in plaats van te proberen dit zelf op te vangen in JS.
@@ -15,7 +15,7 @@
 //  - Gast sluit de app / verliest het netwerk: alleen die speler verdwijnt.
 //    useHostEngine merkt dat op en post de "X heeft het spel verlaten"-chat.
 import { useEffect, useRef } from "react";
-import { AppState } from "react-native";
+import { AppState, type AppStateStatus } from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
 import {
@@ -24,7 +24,7 @@ import {
   setHostAway,
   removeRoom,
   HOST_AWAY_GRACE_MS,
-} from "../logic/room";
+} from "@/logic/room";
 
 export default function usePresence({
   code,
@@ -32,6 +32,12 @@ export default function usePresence({
   isHost,
   hostAwaySince,
   serverNow,
+}: {
+  code: string;
+  playerId: string;
+  isHost: boolean;
+  hostAwaySince?: number | null;
+  serverNow: () => number;
 }) {
   const hostAwayRef = useRef(false);
 
@@ -56,7 +62,7 @@ export default function usePresence({
   useEffect(() => {
     if (!isHost || !code) return undefined;
 
-    const handleChange = (nextState) => {
+    const handleChange = (nextState: AppStateStatus) => {
       if (nextState === "background") {
         hostAwayRef.current = true;
         setHostAway({ code, since: serverNow() });

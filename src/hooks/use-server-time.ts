@@ -1,28 +1,37 @@
-// src/hooks/useServerTime.js
+// src/hooks/use-server-time.ts
 // Elke telefoon loopt een beetje voor of achter. Firebase geeft ons het
 // verschil met de servertijd, zodat alle spelers dezelfde klok gebruiken en
 // iedereen exact tegelijk 0 op de timer ziet.
+//
+// De listener wordt één keer opgezet (bij het eerste gebruik) en gedeeld door
+// de hele app — niet per scherm, anders open je hem meerdere keren.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
 
-export function useServerTime() {
-  const offsetRef = useRef(0);
+let offset = 0;
+let listening = false;
 
-  useEffect(() => {
-    const unsubscribe = onValue(ref(db, ".info/serverTimeOffset"), (snap) => {
-      offsetRef.current = snap.val() || 0;
-    });
-    return () => unsubscribe();
-  }, []);
+function ensureListening() {
+  if (listening) return;
+  listening = true;
+  onValue(ref(db, ".info/serverTimeOffset"), (snap) => {
+    offset = (snap.val() as number | null) ?? 0;
+  });
+}
 
-  // Stabiele functie: verandert nooit, dus veilig in dependency arrays.
-  return useCallback(() => Date.now() + offsetRef.current, []);
+/** De huidige tijd volgens de server, in ms. */
+export function serverNow(): number {
+  ensureListening();
+  return Date.now() + offset;
 }
 
 /** Aftellen naar een absoluut tijdstip. Geeft de resterende milliseconden. */
-export function useCountdown(endsAt, serverNow, intervalMs = 200) {
+export function useCountdown(
+  endsAt: number | undefined | null,
+  intervalMs = 200,
+): number {
   const [msLeft, setMsLeft] = useState(0);
 
   useEffect(() => {
@@ -34,7 +43,7 @@ export function useCountdown(endsAt, serverNow, intervalMs = 200) {
     tick();
     const id = setInterval(tick, intervalMs);
     return () => clearInterval(id);
-  }, [endsAt, serverNow, intervalMs]);
+  }, [endsAt, intervalMs]);
 
   return msLeft;
 }

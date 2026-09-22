@@ -1,4 +1,4 @@
-// src/screens/TurnResultScreen.js
+// src/screens/TurnResultScreen.tsx
 // Tussenstand na elke beurt: het woord wordt onthuld en je ziet wie wat
 // verdiend heeft.
 
@@ -6,53 +6,61 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, View, Text, ScrollView } from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
-import PlayerRow from "../components/PlayerRow";
-import LeaveButton from "../components/LeaveButton";
-import { toRanking } from "../logic/scoring";
-import { useCountdown } from "../hooks/useServerTime";
-import { colors, spacing } from "../theme";
+import PlayerRow from "@/components/player-row";
+import LeaveButton from "@/components/leave-button";
+import { toRanking } from "@/logic/scoring";
+import { useCountdown } from "@/hooks/use-server-time";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useLeaveRoom } from "@/hooks/use-leave-room";
+import { spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import type { GuessedMap } from "@/types/game";
 
-export default function TurnResultScreen({
-  roomCode,
-  gameState,
-  players,
-  playerId,
-  isHost,
-  onLeave,
-  settings,
-  serverNow,
-}) {
-  const [guessed, setGuessed] = useState({});
-  const msLeft = useCountdown(gameState?.phaseEndsAt, serverNow);
+export default function TurnResultScreen() {
+  const roomCode = useSessionStore((state) => state.code);
+  const playerId = useSessionStore((state) => state.playerId);
+  const isHost = useSessionStore((state) => state.isHost);
+  const gameState = useRoomStore((state) => state.gameState);
+  const players = useRoomStore((state) => state.players);
+  const settings = useRoomStore((state) => state.settings);
+  const onLeave = useLeaveRoom();
+
+  const [guessed, setGuessed] = useState<GuessedMap>({});
+  const msLeft = useCountdown(gameState?.phaseEndsAt);
+  const theme = useTheme();
 
   useEffect(() => {
     if (!roomCode) return;
     const unsubscribe = onValue(
       ref(db, `rooms/${roomCode}/turn/guessed`),
-      (snap) => setGuessed(snap.val() || {}),
+      (snap) => setGuessed((snap.val() as GuessedMap | null) || {}),
     );
     return () => unsubscribe();
   }, [roomCode]);
 
   const drawerId = gameState?.currentDrawerId;
-  const drawer = players?.[drawerId];
+  const drawer = players?.[drawerId ?? ""];
   const guessCount = Object.keys(guessed).length;
   const drawerBonus = gameState?.lastDrawerBonus || 0;
   const ranking = toRanking(players);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LeaveButton isHost={isHost} onPress={onLeave} style={styles.leaveButton} />
 
-      <Text style={styles.label}>Het woord was</Text>
-      <Text style={styles.word}>{gameState?.currentWord || "?"}</Text>
+      <ThemedText themeColor="textMuted" style={styles.label}>
+        Het woord was
+      </ThemedText>
+      <ThemedText style={styles.word}>{gameState?.currentWord || "?"}</ThemedText>
 
-      <Text style={styles.summary}>
+      <ThemedText themeColor="success" style={styles.summary}>
         {guessCount === 0
           ? `Niemand heeft het geraden 😬`
           : `${guessCount} ${guessCount === 1 ? "speler" : "spelers"} geraden`}
         {drawer ? ` · ${drawer.name} kreeg +${drawerBonus}` : ""}
-      </Text>
+      </ThemedText>
 
       <ScrollView
         style={styles.scroll}
@@ -76,10 +84,10 @@ export default function TurnResultScreen({
         })}
       </ScrollView>
 
-      <Text style={styles.next}>
+      <ThemedText themeColor="textDim" style={styles.next}>
         Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3} ·
         Volgende beurt over {Math.ceil(msLeft / 1000)}s
-      </Text>
+      </ThemedText>
     </View>
   );
 }
@@ -87,19 +95,16 @@ export default function TurnResultScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     paddingTop: 70,
     paddingHorizontal: spacing.xl,
     paddingBottom: 40,
   },
   leaveButton: { marginBottom: spacing.sm - 2 },
   label: {
-    color: colors.textMuted,
     fontSize: 15,
     textAlign: "center",
   },
   word: {
-    color: colors.text,
     fontSize: 40,
     fontWeight: "bold",
     textAlign: "center",
@@ -107,7 +112,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   summary: {
-    color: colors.success,
     fontSize: 15,
     textAlign: "center",
     marginTop: spacing.md,
@@ -116,7 +120,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.md - 2 },
   next: {
-    color: colors.textDim,
     fontSize: 14,
     textAlign: "center",
     marginTop: spacing.md,

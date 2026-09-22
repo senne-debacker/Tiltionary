@@ -1,4 +1,4 @@
-// src/screens/LobbyScreen.js
+// src/screens/LobbyScreen.tsx
 // Startscherm: naam kiezen, kamer maken of joinen.
 
 import React, { useState } from "react";
@@ -14,36 +14,36 @@ import {
   ActivityIndicator,
 } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
-import { createRoom, joinRoom, cleanupStaleRooms } from "../logic/room";
-import { colors, radius, spacing, shadow } from "../theme";
+import { createRoom, joinRoom, cleanupStaleRooms } from "@/logic/room";
+import { radius, spacing, shadow } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { ThemedText } from "@/components/themed-text";
 
 // Handgetekend lijntje onder de titel — dezelfde balletjes-en-lijnen-taal als
 // het spel zelf, i.p.v. een generieke rechte streep.
-function Squiggle() {
+function Squiggle({ stroke, dot }: { stroke: string; dot: string }) {
   return (
-    <Svg
-      width={220}
-      height={26}
-      viewBox="0 0 220 26"
-      style={styles.squiggle}
-    >
+    <Svg width={220} height={26} viewBox="0 0 220 26" style={styles.squiggle}>
       <Path
         d="M4,18 C 34,4 54,28 84,14 C 114,0 134,24 164,12 C 180,6 190,10 198,14"
-        stroke={colors.accent}
+        stroke={stroke}
         strokeWidth={6}
         strokeLinecap="round"
         fill="none"
       />
-      <Circle cx={206} cy={15} r={7} fill={colors.primary} />
+      <Circle cx={206} cy={15} r={7} fill={dot} />
     </Svg>
   );
 }
 
-export default function LobbyScreen({ onEnterRoom, onSandbox }) {
+export default function LobbyScreen({ onSandbox }: { onSandbox: () => void }) {
+  const setSession = useSessionStore((state) => state.setSession);
   const [nameInput, setNameInput] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [nameFocused, setNameFocused] = useState(false);
   const [busy, setBusy] = useState(false);
+  const theme = useTheme();
 
   const validName = () => {
     const name = nameInput.trim();
@@ -65,7 +65,7 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
       cleanupStaleRooms().catch(() => {});
 
       const { code, playerId } = await createRoom({ name });
-      onEnterRoom({ code, playerId, name, isHost: true });
+      setSession({ code, playerId, nickname: name, isHost: true });
     } catch (error) {
       Alert.alert("Fout", "Kon de kamer niet aanmaken. Check je internet.");
     } finally {
@@ -83,8 +83,15 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
     setBusy(true);
     try {
       const { playerId, error } = await joinRoom({ code: joinCode, name });
-      if (error) return Alert.alert("Oeps!", error);
-      onEnterRoom({ code: joinCode, playerId, name, isHost: false });
+      if (error || !playerId) {
+        return Alert.alert("Oeps!", error ?? "Kon de kamer niet joinen.");
+      }
+      setSession({
+        code: joinCode,
+        playerId,
+        nickname: name,
+        isHost: false,
+      });
     } catch (error) {
       Alert.alert("Fout", "Kon geen verbinding maken.");
     } finally {
@@ -101,22 +108,26 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       <View style={styles.hero}>
-        <Text style={styles.title}>
-          Tilt<Text style={styles.titleAccent}>ionary</Text>
-        </Text>
-        <Squiggle />
-        <Text style={styles.subtitle}>
+        <ThemedText style={styles.title}>
+          Tilt<ThemedText style={[styles.title, { color: theme.primary }]}>ionary</ThemedText>
+        </ThemedText>
+        <Squiggle stroke={theme.accent} dot={theme.primary} />
+        <ThemedText themeColor="textMuted" style={styles.subtitle}>
           Teken met je telefoon, raad met je hoofd
-        </Text>
+        </ThemedText>
       </View>
 
       <TextInput
-        style={[styles.nameInput, nameFocused && styles.nameInputFocused]}
+        style={[
+          styles.nameInput,
+          { backgroundColor: theme.surfaceLighter, color: theme.text, borderColor: theme.border },
+          nameFocused && { borderColor: theme.primary },
+        ]}
         placeholder="Kies je nickname"
-        placeholderTextColor={colors.textDim}
+        placeholderTextColor={theme.textDim}
         maxLength={12}
         value={nameInput}
         onChangeText={setNameInput}
@@ -127,35 +138,38 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
       />
 
       <TouchableOpacity
-        style={[styles.bigButton, busy && styles.busy]}
+        style={[styles.bigButton, { backgroundColor: theme.primary }, busy && styles.busy]}
         onPress={handleCreate}
         disabled={busy}
       >
         {busy ? (
-          <ActivityIndicator color={colors.text} />
+          <ActivityIndicator color="#FFFFFF" />
         ) : (
           <Text style={styles.buttonText}>Maak een kamer</Text>
         )}
       </TouchableOpacity>
 
       <View style={styles.dividerRow}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerLabel}>of</Text>
-        <View style={styles.dividerLine} />
+        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+        <ThemedText themeColor="textDim" style={styles.dividerLabel}>of</ThemedText>
+        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
       </View>
 
       <View style={styles.joinRow}>
         <TextInput
-          style={styles.codeInput}
+          style={[
+            styles.codeInput,
+            { backgroundColor: theme.surfaceLighter, color: theme.text },
+          ]}
           placeholder="Code"
-          placeholderTextColor={colors.textDim}
+          placeholderTextColor={theme.textDim}
           keyboardType="number-pad"
           maxLength={4}
           value={joinCode}
           onChangeText={setJoinCode}
         />
         <TouchableOpacity
-          style={[styles.joinButton, busy && styles.busy]}
+          style={[styles.joinButton, { backgroundColor: theme.success }, busy && styles.busy]}
           onPress={handleJoin}
           disabled={busy}
         >
@@ -163,12 +177,19 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.sandboxButton} onPress={onSandbox}>
-        <Text style={styles.sandboxText}>🎨 Sandbox (oefenen)</Text>
+      <TouchableOpacity
+        style={[styles.sandboxButton, { borderColor: theme.border }]}
+        onPress={onSandbox}
+      >
+        <ThemedText themeColor="textMuted" style={styles.sandboxText}>
+          🎨 Sandbox (oefenen)
+        </ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.infoButton} onPress={showHelp}>
-        <Text style={styles.infoText}>ℹ️ Hoe werkt het tekenen?</Text>
+        <ThemedText themeColor="primary" style={styles.infoText}>
+          ℹ️ Hoe werkt het tekenen?
+        </ThemedText>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -177,34 +198,23 @@ export default function LobbyScreen({ onEnterRoom, onSandbox }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xl,
   },
   hero: { alignItems: "center", marginBottom: spacing.xxl },
-  title: { color: colors.text, fontSize: 44, fontWeight: "800" },
-  titleAccent: { color: colors.primary },
+  title: { fontSize: 44, fontWeight: "800" },
   squiggle: { marginTop: 2 },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: 15,
-    marginTop: spacing.sm,
-  },
+  subtitle: { fontSize: 15, marginTop: spacing.sm },
   nameInput: {
-    backgroundColor: colors.surfaceLighter,
-    color: colors.text,
     fontSize: 22,
     padding: spacing.lg,
     borderRadius: radius.md,
     width: "100%",
     textAlign: "center",
     borderWidth: 2,
-    borderColor: colors.border,
   },
-  nameInputFocused: { borderColor: colors.primary },
   bigButton: {
-    backgroundColor: colors.primary,
     padding: spacing.lg,
     borderRadius: radius.md,
     width: "100%",
@@ -220,13 +230,11 @@ const styles = StyleSheet.create({
     marginVertical: spacing.lg,
     gap: spacing.md,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerLabel: { color: colors.textDim, fontSize: 13, fontWeight: "600" },
+  dividerLine: { flex: 1, height: 1 },
+  dividerLabel: { fontSize: 13, fontWeight: "600" },
   joinRow: { flexDirection: "row", width: "100%" },
   codeInput: {
     flex: 1,
-    backgroundColor: colors.surfaceLighter,
-    color: colors.text,
     fontSize: 22,
     padding: spacing.lg,
     borderRadius: radius.md,
@@ -235,23 +243,21 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   joinButton: {
-    backgroundColor: colors.success,
     borderRadius: radius.md,
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
-  buttonText: { color: colors.text, fontSize: 18, fontWeight: "bold" },
+  buttonText: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
   sandboxButton: {
     borderWidth: 2,
-    borderColor: colors.border,
     padding: spacing.md + 2,
     borderRadius: radius.md,
     width: "100%",
     alignItems: "center",
     marginTop: spacing.lg,
   },
-  sandboxText: { color: colors.textMuted, fontSize: 16, fontWeight: "700" },
+  sandboxText: { fontSize: 16, fontWeight: "700" },
   infoButton: { marginTop: spacing.xl, padding: spacing.sm },
-  infoText: { color: colors.primary, fontSize: 15 },
+  infoText: { fontSize: 15 },
 });

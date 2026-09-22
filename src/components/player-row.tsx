@@ -1,41 +1,75 @@
-// src/components/PlayerRow.js
+// src/components/player-row.tsx
 // Eén rij in een spelerslijst: naam, eventueel medaille/score/kick-knop.
 
 import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
-import { colors, radius, spacing } from "../theme";
+import { StyleSheet, View, TouchableOpacity } from "react-native";
+import { radius, spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import type { Player } from "@/types/game";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
+type PlayerRowProps = {
+  player: Player;
+  /** 0-based; toont een medaille bij de top 3. */
+  rank?: number;
+  showScore?: boolean;
+  /** Punten die deze speler net verdiend heeft. */
+  gained?: number;
+  isYou?: boolean;
+  isDrawer?: boolean;
+  onKick?: () => void;
+};
+
 export default function PlayerRow({
   player,
-  rank, // 0-based; toont een medaille bij de top 3
+  rank,
   showScore = false,
-  gained, // punten die deze speler net verdiend heeft
+  gained,
   isYou = false,
   isDrawer = false,
   onKick,
-}) {
+}: PlayerRowProps) {
+  const theme = useTheme();
+
   return (
-    <View style={[styles.row, isYou && styles.rowYou]}>
+    <View
+      style={[
+        styles.row,
+        { backgroundColor: theme.surfaceLighter },
+        isYou && { borderWidth: 1, borderColor: theme.primary },
+      ]}
+    >
       <View style={styles.left}>
         {rank !== undefined && (
-          <Text style={styles.rank}>{MEDALS[rank] || `${rank + 1}.`}</Text>
+          <ThemedText themeColor="textMuted" style={styles.rank}>
+            {MEDALS[rank] || `${rank + 1}.`}
+          </ThemedText>
         )}
-        <Text style={styles.name} numberOfLines={1}>
+        <ThemedText style={styles.name} numberOfLines={1}>
           {player.name}
           {player.isHost ? " 👑" : ""}
           {isDrawer ? " ✏️" : ""}
           {isYou ? " (jij)" : ""}
-        </Text>
+        </ThemedText>
       </View>
 
       <View style={styles.right}>
-        {gained > 0 && <Text style={styles.gained}>+{gained}</Text>}
-        {showScore && <Text style={styles.score}>{player.score || 0}</Text>}
+        {!!gained && gained > 0 && (
+          <ThemedText themeColor="success" style={styles.gained}>
+            +{gained}
+          </ThemedText>
+        )}
+        {showScore && (
+          <ThemedText style={styles.score}>{player.score || 0}</ThemedText>
+        )}
         {!!onKick && (
-          <TouchableOpacity onPress={onKick} style={styles.kick}>
-            <Text style={styles.kickText}>✕</Text>
+          <TouchableOpacity
+            onPress={onKick}
+            style={[styles.kick, { backgroundColor: theme.danger }]}
+          >
+            <ThemedText style={styles.kickText}>✕</ThemedText>
           </TouchableOpacity>
         )}
       </View>
@@ -48,32 +82,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: colors.surfaceLighter,
     paddingHorizontal: spacing.lg - 1,
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
     marginBottom: spacing.sm,
   },
-  rowYou: { borderWidth: 1, borderColor: colors.primary },
   left: { flexDirection: "row", alignItems: "center", flex: 1 },
   right: { flexDirection: "row", alignItems: "center" },
-  rank: { fontSize: 16, marginRight: spacing.sm + 2, color: colors.textMuted, width: 28 },
-  name: { color: colors.text, fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  score: {
-    color: colors.text,
-    fontSize: 17,
-    fontWeight: "bold",
-    minWidth: 50,
-    textAlign: "right",
-  },
-  gained: {
-    color: colors.success,
-    fontSize: 15,
-    fontWeight: "bold",
-    marginRight: spacing.sm + 2,
-  },
+  rank: { fontSize: 16, marginRight: spacing.sm + 2, width: 28 },
+  name: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
+  score: { fontSize: 17, fontWeight: "bold", minWidth: 50, textAlign: "right" },
+  gained: { fontSize: 15, fontWeight: "bold", marginRight: spacing.sm + 2 },
   kick: {
-    backgroundColor: colors.danger,
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -81,5 +101,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: spacing.md,
   },
-  kickText: { color: colors.text, fontWeight: "bold", fontSize: 14 },
+  kickText: { fontWeight: "bold", fontSize: 14, color: "#FFFFFF" },
 });

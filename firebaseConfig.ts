@@ -1,4 +1,4 @@
-// firebaseConfig.js
+// firebaseConfig.ts
 // Verbindt de app met het Firebase-project (Realtime Database). Deze
 // gegevens komen rechtstreeks uit de Firebase-projectinstellingen.
 

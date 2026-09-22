@@ -1,4 +1,4 @@
-// src/hooks/useHostEngine.js
+// src/hooks/use-host-engine.ts
 // De telefoon van de host is de "scheidsrechter": alleen die zet het spel door
 // naar de volgende fase. Alle andere telefoons kijken gewoon naar wat er in
 // Firebase staat. Zo kan het nooit dubbel gebeuren.
@@ -15,8 +15,31 @@ import {
   endTurn,
   advanceTurn,
   sendSystemMessage,
-} from "../logic/room";
-import { pickWords } from "../data/words";
+} from "@/logic/room";
+import { pickWords } from "@/data/words";
+import type {
+  GameState,
+  GuessedMap,
+  PlayerMap,
+  RoomSettings,
+} from "@/types/game";
+
+type HostEngineArgs = {
+  isHost: boolean;
+  code: string;
+  gameState: GameState | null;
+  players: PlayerMap;
+  settings: RoomSettings | null;
+  serverNow: () => number;
+};
+
+/** Wat de tick-lus nodig heeft; via een ref, zodat de interval stabiel blijft. */
+type EngineSnapshot = {
+  gameState: GameState | null;
+  players: PlayerMap;
+  settings: RoomSettings | null;
+  guessed: GuessedMap;
+};
 
 const TICK_MS = 400;
 
@@ -27,15 +50,20 @@ export default function useHostEngine({
   players,
   settings,
   serverNow,
-}) {
-  const [guessed, setGuessed] = useState({});
-  const latest = useRef({});
+}: HostEngineArgs) {
+  const [guessed, setGuessed] = useState<GuessedMap>({});
+  const latest = useRef<EngineSnapshot>({
+    gameState: null,
+    players: {},
+    settings: null,
+    guessed: {},
+  });
   // Elke fase krijgt een unieke sleutel. Zo voert de host een overgang nooit
   // twee keer uit terwijl hij wacht tot de nieuwe status binnenkomt.
   const handledRef = useRef("");
   // Voor het opmerken van spelers die verdwijnen (zie effect hieronder).
-  const previousPlayersRef = useRef(null);
-  const previousCodeRef = useRef(null);
+  const previousPlayersRef = useRef<PlayerMap | null>(null);
+  const previousCodeRef = useRef<string | null>(null);
 
   latest.current = { gameState, players, settings, guessed };
 
@@ -43,7 +71,7 @@ export default function useHostEngine({
   useEffect(() => {
     if (!isHost || !code) return;
     const unsubscribe = onValue(ref(db, `rooms/${code}/turn/guessed`), (snap) =>
-      setGuessed(snap.val() || {}),
+      setGuessed((snap.val() as GuessedMap | null) || {}),
     );
     return () => unsubscribe();
   }, [isHost, code]);

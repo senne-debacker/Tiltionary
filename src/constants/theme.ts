@@ -1,28 +1,66 @@
-// src/theme.js
-// Eén plek voor alle kleuren, maten en schaduwen, zodat alle schermen
-// dezelfde visuele taal spreken. Verander je hier iets, dan verandert de
-// hele app mee.
+// src/constants/theme.ts
+// Eén plek voor alle kleuren, maten en schaduwen. De app volgt het systeem:
+// Colors.light en Colors.dark hebben exact dezelfde sleutels, zodat elk scherm
+// via useTheme() de juiste variant krijgt zonder ergens iets te vergeten.
 
-export const colors = {
-  background: "#0D0A17", // gedempt indigo-zwart i.p.v. puur zwart
-  surface: "#161228",
-  surfaceLight: "#1F1A35",
-  surfaceLighter: "#2B2547",
-  border: "#392F5C",
-  text: "#F7F5FF",
-  textMuted: "#A69BD1",
-  textDim: "#6C6293",
-  primary: "#8B5CF6", // merkkleur: paars
-  accent: "#FF6B6B", // koraal, voor secundaire nadruk/CTA's
-  success: "#2DD4BF",
-  danger: "#FB4B4B",
-  warning: "#FFB020",
-  gold: "#FFD60A",
-  silver: "#C7C7CC",
-  bronze: "#CD7F32",
+export const Colors = {
+  dark: {
+    background: "#0D0A17", // gedempt indigo-zwart i.p.v. puur zwart
+    surface: "#161228",
+    surfaceLight: "#1F1A35",
+    surfaceLighter: "#2B2547",
+    border: "#392F5C",
+    text: "#F7F5FF",
+    textMuted: "#A69BD1",
+    textDim: "#6C6293",
+    primary: "#8B5CF6", // merkkleur: paars
+    accent: "#FF6B6B", // koraal, voor secundaire nadruk
+    success: "#2DD4BF",
+    danger: "#FB4B4B",
+    warning: "#FFB020",
+    gold: "#FFD60A",
+    silver: "#C7C7CC",
+    bronze: "#CD7F32",
+  },
+  // Geen omkering van het donkere palet: teal, amber en goud zijn op wit veel
+  // te licht om als tekst te lezen, dus die worden hier bewust dieper.
+  light: {
+    background: "#FBFAFF",
+    surface: "#FFFFFF",
+    surfaceLight: "#F3F0FC",
+    surfaceLighter: "#E9E3F9",
+    border: "#D8CEF0",
+    text: "#16112A",
+    textMuted: "#5C5280",
+    textDim: "#8A80A8",
+    primary: "#7C3AED",
+    accent: "#E14B4B",
+    success: "#0D9488",
+    danger: "#DC2626",
+    warning: "#B45309",
+    gold: "#A87900",
+    silver: "#8E8E93",
+    bronze: "#8C5A24",
+  },
+} as const;
+
+export type ThemeName = keyof typeof Colors;
+export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type Theme = (typeof Colors)[ThemeName];
+
+/**
+ * Het tekenvlak volgt BEWUST het thema niet. Een tekening wordt gedeeld tussen
+ * spelers die elk een andere systeeminstelling kunnen hebben — als de
+ * achtergrond mee zou veranderen, zag dezelfde tekening er bij iedereen anders
+ * uit en zou witte inkt bij de één onzichtbaar zijn.
+ */
+export const canvas = {
+  background: "#1F1A35",
+  hint: "#A69BD1",
+  overlay: "rgba(13,10,23,0.9)",
 };
 
-export const INK = colors.primary; // standaardkleur van de getekende lijn
+export const INK = "#8B5CF6"; // standaardkleur van de getekende lijn
 
 // Kleuren waaruit de tekenaar kan kiezen voor het balletje/de lijn.
 export const INK_COLORS = [

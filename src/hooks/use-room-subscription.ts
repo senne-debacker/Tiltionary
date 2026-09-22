@@ -1,43 +1,46 @@
-// src/hooks/useRoom.js
-// Luistert naar de kamer in losse stukken (gameState / players / settings).
-// Bewust NIET naar de hele kamer in één listener: tijdens het tekenen worden
-// de lijnen 10x per seconde bijgewerkt, en dan zou de hele app steeds
-// opnieuw renderen.
+// src/hooks/use-room-subscription.ts
+// Luistert naar de kamer en schrijft alles in de room-store.
+//
+// Twee bewuste keuzes:
+//  - Losse listeners per stuk (gameState / players / settings) i.p.v. één op de
+//    hele kamer: tijdens het tekenen worden de lijnen 10x per seconde
+//    bijgewerkt, en dan zou de hele app blijven hertekenen.
+//  - Wordt maar op ÉÉN plek aangeroepen (de room-layout), niet per scherm,
+//    anders open je dezelfde listeners meerdere keren.
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
+import { useRoomStore } from "@/hooks/use-room-store";
+import type { GameState, PlayerMap, RoomSettings } from "@/types/game";
 
-export default function useRoom(code) {
-  const [gameState, setGameState] = useState(null);
-  const [players, setPlayers] = useState({});
-  const [settings, setSettings] = useState(null);
-  const [loaded, setLoaded] = useState(false);
-
+export function useRoomSubscription(code: string) {
   useEffect(() => {
+    const { setGameState, setPlayers, setSettings, reset } =
+      useRoomStore.getState();
+
     if (!code) {
-      setGameState(null);
-      setPlayers({});
-      setSettings(null);
-      setLoaded(false);
+      reset();
       return;
     }
 
+    // snap.val() is `any`: hier casten we één keer, zodat de rest van de app
+    // met echte types werkt in plaats van met onbekende data.
     const unsubscribers = [
-      onValue(ref(db, `rooms/${code}/gameState`), (snap) => {
-        setGameState(snap.val());
-        setLoaded(true);
-      }),
-      onValue(ref(db, `rooms/${code}/players`), (snap) => {
-        setPlayers(snap.val() || {});
-      }),
-      onValue(ref(db, `rooms/${code}/settings`), (snap) => {
-        setSettings(snap.val());
-      }),
+      onValue(ref(db, `rooms/${code}/gameState`), (snap) =>
+        setGameState(snap.val() as GameState | null),
+      ),
+      onValue(ref(db, `rooms/${code}/players`), (snap) =>
+        setPlayers((snap.val() as PlayerMap | null) || {}),
+      ),
+      onValue(ref(db, `rooms/${code}/settings`), (snap) =>
+        setSettings(snap.val() as RoomSettings | null),
+      ),
     ];
 
-    return () => unsubscribers.forEach((off) => off());
+    return () => {
+      unsubscribers.forEach((off) => off());
+      reset();
+    };
   }, [code]);
-
-  return { gameState, players, settings, loaded };
 }

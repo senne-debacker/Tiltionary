@@ -1,4 +1,4 @@
-// src/hooks/useTiltDrawing.js
+// src/hooks/use-tilt-drawing.ts
 // Het tekenen zelf: kantel de telefoon om het balletje te rollen, tik om je
 // pen op te tillen. Wissen en ongedaan maken gaan via expliciete knoppen
 // (clear()/undo()) in plaats van een schudgebaar — dat triggerde te makkelijk
@@ -12,7 +12,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Dimensions } from "react-native";
 import { Accelerometer } from "expo-sensors";
 import * as Haptics from "expo-haptics";
-import { INK } from "../theme";
+import { INK } from "@/constants/theme";
+import type { DrawPath, Point } from "@/types/game";
+import type { LayoutChangeEvent, GestureResponderEvent } from "react-native";
+
+/** Wat er naar Firebase gestuurd wordt als er nieuwe punten bijkomen. */
+export type SyncPointsPayload = {
+  pathIndex: number;
+  startIndex: number;
+  points: Point[];
+  color: string;
+};
+
+type TiltDrawingArgs = {
+  enabled?: boolean;
+  color?: string;
+  onSyncPoints?: (payload: SyncPointsPayload) => void;
+  onClearRemote?: () => void;
+  onUndoRemote?: (removedPathIndex: number) => void;
+};
 
 const screen = Dimensions.get("window");
 
@@ -25,21 +43,21 @@ const UPDATE_INTERVAL_MS = 16; // ~60 fps
 export default function useTiltDrawing({
   enabled = true,
   color = INK, // huidige inktkleur; wisselen splitst de lopende lijn meteen
-  onSyncPoints, // ({ pathIndex, startIndex, points, color }) => void
-  onClearRemote, // () => void
-  onUndoRemote, // (removedPathIndex) => void
-} = {}) {
-  const [paths, setPaths] = useState([]);
+  onSyncPoints,
+  onClearRemote,
+  onUndoRemote,
+}: TiltDrawingArgs = {}) {
+  const [paths, setPaths] = useState<DrawPath[]>([]);
   const [position, setPosition] = useState({
     x: screen.width / 2,
     y: screen.height / 2,
   });
-  const [drawState, setDrawState] = useState("waiting"); // 'waiting' | 'drawing'
+  const [drawState, setDrawState] = useState<"waiting" | "drawing">("waiting");
   const [isPenLifted, setIsPenLifted] = useState(false);
 
   const posRef = useRef(position);
-  const pathsRef = useRef([]);
-  const drawStateRef = useRef("waiting");
+  const pathsRef = useRef<DrawPath[]>([]);
+  const drawStateRef = useRef<"waiting" | "drawing">("waiting");
   const penLiftedRef = useRef(false);
   const boundsRef = useRef({ width: screen.width, height: screen.height });
   const colorRef = useRef(color);
@@ -143,7 +161,7 @@ export default function useTiltDrawing({
   }, []);
 
   /** Canvasgrootte onthouden, zodat het balletje binnen het vlak blijft. */
-  const handleLayout = useCallback((event) => {
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     boundsRef.current = { width, height };
   }, []);
@@ -226,7 +244,7 @@ export default function useTiltDrawing({
   }, [enabled]);
 
   const handleTouchStart = useCallback(
-    (event) => {
+    (event: GestureResponderEvent) => {
       if (!enabled) return;
       const { locationX, locationY } = event.nativeEvent;
 

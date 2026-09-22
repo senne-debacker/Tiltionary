@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.senne-debacker.TiltTekenen"
@@ -31,7 +31,12 @@
           "savePhotosPermission": "Sta Tiltionary toe om je tekeningen op te slaan in je fotobibliotheek.",
           "isAccessMediaLocationEnabled": false
         }
-      ]
-    ]
+      ],
+      "expo-router"
+    ],
+    "scheme": "tiltionary",
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

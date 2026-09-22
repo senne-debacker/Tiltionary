@@ -1,4 +1,4 @@
-// src/components/ChatPanel.js
+// src/components/chat-panel.tsx
 // Eigen state voor het invoerveld, en React.memo eromheen: tijdens het tekenen
 // rendert het spelscherm ~60x per seconde, en de chat hoeft dan niets te doen.
 
@@ -11,14 +11,28 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
-import { colors, radius, spacing } from "../theme";
+import { radius, spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import type { StyleProp, ViewStyle } from "react-native";
+import type { ChatMessageWithId } from "@/types/game";
 
-function Message({ item }) {
+type ChatPanelProps = {
+  messages?: ChatMessageWithId[];
+  onSend?: (text: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  style?: StyleProp<ViewStyle>;
+};
+
+function Message({ item }: { item: ChatMessageWithId }) {
+  const theme = useTheme();
+
   if (item.type === "system") {
     return (
       <Text
         style={[
           styles.system,
+          { color: item.tone === "success" ? theme.success : theme.warning },
           item.tone === "success" && styles.systemSuccess,
         ]}
       >
@@ -28,16 +42,25 @@ function Message({ item }) {
   }
 
   return (
-    <Text style={styles.message}>
-      <Text style={styles.author}>{item.name}: </Text>
+    <Text style={[styles.message, { color: theme.text }]}>
+      <Text style={[styles.author, { color: theme.textMuted }]}>
+        {item.name}:{" "}
+      </Text>
       {item.text}
     </Text>
   );
 }
 
-function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
+function ChatPanel({
+  messages = [],
+  onSend,
+  disabled,
+  placeholder,
+  style,
+}: ChatPanelProps) {
   const [text, setText] = useState("");
-  const listRef = useRef(null);
+  const listRef = useRef<FlatList<ChatMessageWithId>>(null);
+  const theme = useTheme();
 
   const send = () => {
     const value = text.trim();
@@ -47,7 +70,7 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
   };
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { backgroundColor: theme.surface }, style]}>
       <FlatList
         ref={listRef}
         data={messages}
@@ -60,15 +83,21 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
         }
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
-          <Text style={styles.empty}>Typ hier je gok...</Text>
+          <Text style={[styles.empty, { color: theme.textDim }]}>
+            Typ hier je gok...
+          </Text>
         }
       />
 
       <View style={styles.inputRow}>
         <TextInput
-          style={[styles.input, disabled && styles.inputDisabled]}
+          style={[
+            styles.input,
+            { backgroundColor: theme.surfaceLighter, color: theme.text },
+            disabled && styles.inputDisabled,
+          ]}
           placeholder={placeholder || "Typ je gok..."}
-          placeholderTextColor={colors.textDim}
+          placeholderTextColor={theme.textDim}
           value={text}
           onChangeText={setText}
           onSubmitEditing={send}
@@ -80,7 +109,10 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
           autoCorrect={false}
         />
         <TouchableOpacity
-          style={[styles.button, disabled && styles.buttonDisabled]}
+          style={[
+            styles.button,
+            { backgroundColor: disabled ? theme.border : theme.primary },
+          ]}
           onPress={send}
           disabled={disabled}
         >
@@ -92,24 +124,17 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: colors.surface },
+  container: {},
   list: { maxHeight: 150 },
   listContent: { padding: spacing.md, paddingBottom: spacing.xs },
-  empty: { color: colors.textDim, fontStyle: "italic", fontSize: 13 },
-  message: { color: colors.text, fontSize: 14, marginBottom: spacing.xs },
-  author: { fontWeight: "bold", color: colors.textMuted },
-  system: {
-    color: colors.warning,
-    fontSize: 14,
-    fontStyle: "italic",
-    marginBottom: spacing.xs,
-  },
-  systemSuccess: { color: colors.success, fontWeight: "bold" },
+  empty: { fontStyle: "italic", fontSize: 13 },
+  message: { fontSize: 14, marginBottom: spacing.xs },
+  author: { fontWeight: "bold" },
+  system: { fontSize: 14, fontStyle: "italic", marginBottom: spacing.xs },
+  systemSuccess: { fontWeight: "bold" },
   inputRow: { flexDirection: "row", padding: spacing.md, paddingTop: spacing.xs },
   input: {
     flex: 1,
-    backgroundColor: colors.surfaceLighter,
-    color: colors.text,
     paddingHorizontal: spacing.lg - 1,
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
@@ -118,13 +143,11 @@ const styles = StyleSheet.create({
   },
   inputDisabled: { opacity: 0.4 },
   button: {
-    backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg + 2,
     borderRadius: radius.sm,
     justifyContent: "center",
   },
-  buttonDisabled: { backgroundColor: colors.border },
-  buttonText: { color: colors.text, fontSize: 18, fontWeight: "bold" },
+  buttonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
 });
 
 export default React.memo(ChatPanel);

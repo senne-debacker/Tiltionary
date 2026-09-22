@@ -1,15 +1,28 @@
-// src/components/ColorPicker.js
+// src/components/color-picker.tsx
 // Rij kleurbolletjes waaruit de tekenaar de inktkleur kiest. Werkt meteen,
-// ook midden in een lijn (zie de kleurwissel-logica in useTiltDrawing).
+// ook midden in een lijn (zie de kleurwissel-logica in use-tilt-drawing).
 
 import React from "react";
 import { StyleSheet, View, TouchableOpacity } from "react-native";
-import { INK_COLORS, colors, radius, spacing } from "../theme";
+import { INK_COLORS, radius, spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 
-function ColorPicker({ value, onChange, disabled }) {
+type ColorPickerProps = {
+  value: string;
+  onChange: (color: string) => void;
+  disabled?: boolean;
+};
+
+function ColorPicker({ value, onChange, disabled }: ColorPickerProps) {
+  const theme = useTheme();
+
   return (
     <View
-      style={[styles.row, disabled && styles.disabled]}
+      style={[
+        styles.row,
+        { backgroundColor: theme.surface },
+        disabled && styles.disabled,
+      ]}
       pointerEvents={disabled ? "none" : "auto"}
     >
       {INK_COLORS.map((color) => {
@@ -21,7 +34,7 @@ function ColorPicker({ value, onChange, disabled }) {
             style={[
               styles.swatch,
               { backgroundColor: color },
-              selected && styles.swatchSelected,
+              selected && [styles.swatchSelected, { borderColor: theme.text }],
             ]}
           />
         );
@@ -37,7 +50,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm + 2,
-    backgroundColor: colors.surface,
   },
   disabled: { opacity: 0.35 },
   swatch: {
@@ -47,10 +59,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.15)",
   },
-  swatchSelected: {
-    borderColor: colors.text,
-    transform: [{ scale: 1.15 }],
-  },
+  swatchSelected: { transform: [{ scale: 1.15 }] },
 });
 
 export default React.memo(ColorPicker);

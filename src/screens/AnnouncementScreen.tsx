@@ -1,26 +1,31 @@
-// src/screens/AnnouncementScreen.js
+// src/screens/AnnouncementScreen.tsx
 // "Speler X tekent!" — 5 seconden lang, zodat iedereen weet wie aan de beurt is.
 
 import React, { useEffect, useRef } from "react";
 import { StyleSheet, View, Text, Animated, Easing } from "react-native";
 import * as Haptics from "expo-haptics";
-import { useCountdown } from "../hooks/useServerTime";
-import LeaveButton from "../components/LeaveButton";
-import { colors, radius, spacing, shadow } from "../theme";
+import { useCountdown } from "@/hooks/use-server-time";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useLeaveRoom } from "@/hooks/use-leave-room";
+import LeaveButton from "@/components/leave-button";
+import { radius, spacing, shadow } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
 
-export default function AnnouncementScreen({
-  gameState,
-  players,
-  playerId,
-  isHost,
-  onLeave,
-  settings,
-  serverNow,
-}) {
-  const msLeft = useCountdown(gameState?.phaseEndsAt, serverNow);
-  const drawer = players?.[gameState?.currentDrawerId];
+export default function AnnouncementScreen() {
+  const playerId = useSessionStore((state) => state.playerId);
+  const isHost = useSessionStore((state) => state.isHost);
+  const gameState = useRoomStore((state) => state.gameState);
+  const players = useRoomStore((state) => state.players);
+  const settings = useRoomStore((state) => state.settings);
+  const onLeave = useLeaveRoom();
+
+  const msLeft = useCountdown(gameState?.phaseEndsAt);
+  const drawer = players?.[gameState?.currentDrawerId ?? ""];
   const isYou = gameState?.currentDrawerId === playerId;
   const scale = useRef(new Animated.Value(0.7)).current;
+  const theme = useTheme();
 
   useEffect(() => {
     Animated.timing(scale, {
@@ -33,28 +38,36 @@ export default function AnnouncementScreen({
   }, [gameState?.currentDrawerId, scale]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <LeaveButton isHost={isHost} onPress={onLeave} style={styles.leaveButton} />
 
-      <Text style={styles.round}>
+      <ThemedText themeColor="textMuted" style={styles.round}>
         Ronde {gameState?.currentRound || 1} van {settings?.maxRounds || 3}
-      </Text>
+      </ThemedText>
 
-      <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[
+          styles.card,
+          { backgroundColor: theme.surfaceLight, borderColor: theme.primary },
+          { transform: [{ scale }] },
+        ]}
+      >
         <Text style={styles.emoji}>✏️</Text>
-        <Text style={styles.name}>{drawer?.name || "Speler"}</Text>
-        <Text style={styles.action}>
+        <ThemedText style={styles.name}>{drawer?.name || "Speler"}</ThemedText>
+        <ThemedText themeColor="primary" style={styles.action}>
           {isYou ? "Jij tekent!" : "is aan het tekenen!"}
-        </Text>
+        </ThemedText>
       </Animated.View>
 
-      <Text style={styles.hint}>
+      <ThemedText themeColor="textMuted" style={styles.hint}>
         {isYou
           ? "Maak je klaar, je mag zo een woord kiezen."
           : "Hou de chat in de gaten en raad zo snel mogelijk."}
-      </Text>
+      </ThemedText>
 
-      <Text style={styles.countdown}>{Math.ceil(msLeft / 1000)}</Text>
+      <ThemedText themeColor="textDim" style={styles.countdown}>
+        {Math.ceil(msLeft / 1000)}
+      </ThemedText>
     </View>
   );
 }
@@ -62,40 +75,34 @@ export default function AnnouncementScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xxl,
   },
   leaveButton: { position: "absolute", top: 55, right: spacing.xl },
   round: {
-    color: colors.textMuted,
     fontSize: 16,
     fontWeight: "600",
     marginBottom: spacing.xxl,
   },
   card: {
-    backgroundColor: colors.surfaceLight,
     paddingVertical: 40,
     paddingHorizontal: spacing.xxl,
     borderRadius: radius.lg,
     alignItems: "center",
     width: "100%",
     borderWidth: 2,
-    borderColor: colors.primary,
     ...shadow.md,
   },
   emoji: { fontSize: 56, marginBottom: spacing.md },
-  name: { color: colors.text, fontSize: 34, fontWeight: "bold" },
-  action: { color: colors.primary, fontSize: 20, marginTop: spacing.xs + 2 },
+  name: { fontSize: 34, fontWeight: "bold" },
+  action: { fontSize: 20, marginTop: spacing.xs + 2 },
   hint: {
-    color: colors.textMuted,
     fontSize: 15,
     textAlign: "center",
     marginTop: spacing.xxl,
   },
   countdown: {
-    color: colors.textDim,
     fontSize: 60,
     fontWeight: "bold",
     marginTop: spacing.xl,

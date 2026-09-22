@@ -1,4 +1,4 @@
-// src/screens/GameScreen.js
+// src/screens/GameScreen.tsx
 // Het hart van het spel: de tekenaar tekent, de rest raadt via de chat.
 // Dit scherm wordt gebruikt tijdens 'choosing' (woord kiezen) en 'playing'.
 
@@ -15,55 +15,68 @@ import { useKeepAwake } from "expo-keep-awake";
 import * as Haptics from "expo-haptics";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
-import DrawingCanvas from "../components/DrawingCanvas";
-import ChatPanel from "../components/ChatPanel";
-import TimerBar from "../components/TimerBar";
-import ColorPicker from "../components/ColorPicker";
-import DrawingToolbar from "../components/DrawingToolbar";
-import LeaveButton from "../components/LeaveButton";
-import useTiltDrawing from "../hooks/useTiltDrawing";
-import { useCountdown } from "../hooks/useServerTime";
+import DrawingCanvas from "@/components/drawing-canvas";
+import ChatPanel from "@/components/chat-panel";
+import TimerBar from "@/components/timer-bar";
+import ColorPicker from "@/components/color-picker";
+import DrawingToolbar from "@/components/drawing-toolbar";
+import LeaveButton from "@/components/leave-button";
+import useTiltDrawing from "@/hooks/use-tilt-drawing";
+import { useCountdown, serverNow } from "@/hooks/use-server-time";
+import { useSessionStore } from "@/hooks/use-session-store";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useLeaveRoom } from "@/hooks/use-leave-room";
+import { playDing } from "@/hooks/use-ding-sound";
 import {
   syncPoints,
   clearDrawing,
   undoLastPath,
   publishCanvasSize,
   normalizePaths,
-} from "../logic/drawing";
-import { startDrawingTurn, sendGuess } from "../logic/room";
-import { colors, radius, spacing, INK_COLORS } from "../theme";
+} from "@/logic/drawing";
+import { startDrawingTurn, sendGuess } from "@/logic/room";
+import { canvas, radius, spacing, INK_COLORS } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { ThemedText } from "@/components/themed-text";
+import type {
+  ChatMap,
+  ChatMessageWithId,
+  GuessedMap,
+  RoomDrawing,
+} from "@/types/game";
+import type { SyncPointsPayload } from "@/hooks/use-tilt-drawing";
+import type { LayoutChangeEvent } from "react-native";
 
-export default function GameScreen({
-  roomCode,
-  playerId,
-  nickname,
-  gameState,
-  players,
-  isHost,
-  onLeave,
-  settings,
-  serverNow,
-  onCorrectGuess,
-}) {
+export default function GameScreen() {
   useKeepAwake();
+
+  const roomCode = useSessionStore((state) => state.code);
+  const playerId = useSessionStore((state) => state.playerId);
+  const nickname = useSessionStore((state) => state.nickname);
+  const isHost = useSessionStore((state) => state.isHost);
+  const gameState = useRoomStore((state) => state.gameState);
+  const players = useRoomStore((state) => state.players);
+  const settings = useRoomStore((state) => state.settings);
+  const onLeave = useLeaveRoom();
 
   const isDrawer = gameState?.currentDrawerId === playerId;
   const isChoosing = gameState?.status === "choosing";
   const isPlaying = gameState?.status === "playing";
 
-  const [remoteDrawing, setRemoteDrawing] = useState(null);
-  const [chat, setChat] = useState({});
-  const [guessed, setGuessed] = useState({});
+  const [remoteDrawing, setRemoteDrawing] = useState<RoomDrawing | null>(null);
+  const [chat, setChat] = useState<ChatMap>({});
+  const [guessed, setGuessed] = useState<GuessedMap>({});
   const [inkColor, setInkColor] = useState(INK_COLORS[0]);
-  const canvasSize = useRef(null);
+  const canvasSize = useRef<{ width: number; height: number } | null>(null);
 
-  const msLeft = useCountdown(gameState?.phaseEndsAt, serverNow);
+  const msLeft = useCountdown(gameState?.phaseEndsAt);
+  const theme = useTheme();
   const haveGuessed = !!guessed[playerId];
 
   // ---- Tekenen ----
 
   const handleSyncPoints = useCallback(
-    (payload) => syncPoints({ code: roomCode, ...payload }),
+    (payload: SyncPointsPayload) => syncPoints({ code: roomCode, ...payload }),
     [roomCode],
   );
   const handleClearRemote = useCallback(
@@ -71,7 +84,7 @@ export default function GameScreen({
     [roomCode],
   );
   const handleUndoRemote = useCallback(
-    (pathIndex) => undoLastPath({ code: roomCode, pathIndex }),
+    (pathIndex: number) => undoLastPath({ code: roomCode, pathIndex }),
     [roomCode],
   );
 
@@ -102,7 +115,7 @@ export default function GameScreen({
   // De raders schalen de tekening naar hun eigen scherm. Daarvoor moeten ze
   // weten hoe groot het canvas van de tekenaar is.
   const onCanvasLayout = useCallback(
-    (event) => {
+    (event: LayoutChangeEvent) => {
       handleLayout(event);
       const { width, height } = event.nativeEvent.layout;
       canvasSize.current = { width, height };
@@ -122,13 +135,13 @@ export default function GameScreen({
     if (!roomCode) return;
     const unsubscribers = [
       onValue(ref(db, `rooms/${roomCode}/drawing`), (snap) =>
-        setRemoteDrawing(snap.val()),
+        setRemoteDrawing(snap.val() as RoomDrawing | null),
       ),
       onValue(ref(db, `rooms/${roomCode}/chat`), (snap) =>
-        setChat(snap.val() || {}),
+        setChat((snap.val() as ChatMap | null) || {}),
       ),
       onValue(ref(db, `rooms/${roomCode}/turn/guessed`), (snap) =>
-        setGuessed(snap.val() || {}),
+        setGuessed((snap.val() as GuessedMap | null) || {}),
       ),
     ];
     return () => unsubscribers.forEach((off) => off());
@@ -137,7 +150,7 @@ export default function GameScreen({
   const messages = useMemo(
     () =>
       Object.entries(chat)
-        .map(([id, message]) => ({ id, ...message }))
+        .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
         .sort((a, b) => (a.at || 0) - (b.at || 0)),
     [chat],
   );
@@ -155,15 +168,16 @@ export default function GameScreen({
 
   // ---- Acties ----
 
-  const handleChooseWord = (word) => {
+  const handleChooseWord = (word: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!gameState) return;
     startDrawingTurn({ code: roomCode, word, gameState, serverNow });
   };
 
   // useCallback is hier belangrijk: tijdens het tekenen rendert dit scherm
   // ~60x per seconde. Zonder dit zou de (memo'de) chat elke keer meerenderen.
   const handleSend = useCallback(
-    async (text) => {
+    async (text: string) => {
       const result = await sendGuess({
         code: roomCode,
         playerId,
@@ -174,10 +188,10 @@ export default function GameScreen({
       });
       if (result.correct && !result.already) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onCorrectGuess?.(); // het "ding"-geluidje, alleen voor jezelf
+        playDing(); // alleen voor jezelf
       }
     },
-    [roomCode, playerId, nickname, gameState, serverNow, onCorrectGuess],
+    [roomCode, playerId, nickname, gameState],
   );
 
   // ---- Weergave ----
@@ -186,7 +200,7 @@ export default function GameScreen({
     (id) => id !== gameState?.currentDrawerId,
   );
   const guessCount = Object.keys(guessed).length;
-  const drawerName = players?.[gameState?.currentDrawerId]?.name || "Speler";
+  const drawerName = players?.[gameState?.currentDrawerId ?? ""]?.name || "Speler";
   const word = gameState?.currentWord || "";
 
   // Raders zien alleen streepjes, tenzij ze het al geraden hebben.
@@ -209,26 +223,26 @@ export default function GameScreen({
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.surface }]}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.round}>
+            <ThemedText themeColor="textMuted" style={styles.round}>
               Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3}
-            </Text>
-            <Text style={styles.guessCount}>
+            </ThemedText>
+            <ThemedText themeColor="success" style={styles.guessCount}>
               {guessCount}/{guessers.length} geraden
-            </Text>
+            </ThemedText>
           </View>
           <LeaveButton isHost={isHost} onPress={onLeave} />
         </View>
 
-        <Text style={styles.word}>{wordDisplay}</Text>
-        <Text style={styles.drawerLine}>
+        <ThemedText style={styles.word}>{wordDisplay}</ThemedText>
+        <ThemedText themeColor="textMuted" style={styles.drawerLine}>
           {isDrawer ? "Jij tekent" : `${drawerName} tekent`}
           {!isDrawer && word && !isChoosing ? ` · ${word.length} letters` : ""}
-        </Text>
+        </ThemedText>
 
         {isPlaying && (
           <TimerBar msLeft={msLeft} totalMs={gameState?.turnDurationMs} />
@@ -267,7 +281,7 @@ export default function GameScreen({
                 {(gameState?.wordChoices || []).map((choice) => (
                   <TouchableOpacity
                     key={choice}
-                    style={styles.wordButton}
+                    style={[styles.wordButton, { backgroundColor: theme.primary }]}
                     onPress={() => handleChooseWord(choice)}
                   >
                     <Text style={styles.wordButtonText}>{choice}</Text>
@@ -306,12 +320,11 @@ export default function GameScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   header: {
     paddingTop: 55,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.xl,
-    backgroundColor: colors.surface,
   },
   headerTop: {
     flexDirection: "row",
@@ -319,17 +332,15 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: spacing.sm,
   },
-  round: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
-  guessCount: { color: colors.success, fontSize: 13, fontWeight: "600" },
+  round: { fontSize: 13, fontWeight: "600" },
+  guessCount: { fontSize: 13, fontWeight: "600" },
   word: {
-    color: colors.text,
     fontSize: 26,
     fontWeight: "bold",
     letterSpacing: 4,
     textAlign: "center",
   },
   drawerLine: {
-    color: colors.textMuted,
     fontSize: 13,
     textAlign: "center",
     marginTop: spacing.xs - 2,
@@ -344,26 +355,25 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(13,10,23,0.9)",
+    backgroundColor: canvas.overlay,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xxl,
   },
   overlayTitle: {
-    color: colors.text,
+    color: "#F7F5FF",
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
   },
   overlaySub: {
-    color: colors.textMuted,
+    color: canvas.hint,
     fontSize: 14,
     marginTop: spacing.sm - 2,
     marginBottom: spacing.xxl - 4,
     textAlign: "center",
   },
   wordButton: {
-    backgroundColor: colors.primary,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.xxl,
     borderRadius: radius.md,
@@ -372,7 +382,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   wordButtonText: {
-    color: colors.text,
+    color: "#FFFFFF",
     fontSize: 20,
     fontWeight: "bold",
     letterSpacing: 2,
