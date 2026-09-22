@@ -6,10 +6,13 @@ import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { SymbolView, type SFSymbol, type AndroidSymbol } from "expo-symbols";
 import type { ReactNode } from "react";
 
 type ToolbarButtonProps = {
   label: string;
+  /** SF Symbol (iOS) met een Material-tegenhanger voor Android. */
+  icon: { ios: SFSymbol; android: AndroidSymbol };
   onPress: () => void;
   disabled?: boolean;
   tone?: "default" | "danger" | "primary";
@@ -25,11 +28,17 @@ type DrawingToolbarProps = {
 
 function ToolbarButton({
   label,
+  icon,
   onPress,
   disabled,
   tone = "default",
 }: ToolbarButtonProps) {
   const theme = useTheme();
+  const color = disabled
+    ? theme.textMuted
+    : tone === "danger"
+      ? theme.danger
+      : theme.text;
 
   const background =
     tone === "primary"
@@ -48,15 +57,12 @@ function ToolbarButton({
       onPress={onPress}
       disabled={disabled}
     >
-      <Text
-        style={[
-          styles.text,
-          { color: tone === "danger" ? theme.danger : theme.text },
-          disabled && { color: theme.textMuted },
-        ]}
-      >
-        {label}
-      </Text>
+      <SymbolView
+        name={{ ios: icon.ios, android: icon.android, web: icon.android }}
+        tintColor={color}
+        size={16}
+      />
+      <Text style={[styles.text, { color }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -73,12 +79,14 @@ function DrawingToolbar({
   return (
     <View style={[styles.row, { backgroundColor: theme.surface }]}>
       <ToolbarButton
-        label="↩ Ongedaan maken"
+        label="Ongedaan maken"
+        icon={{ ios: "arrow.uturn.backward", android: "undo" }}
         onPress={onUndo}
         disabled={!canUndo}
       />
       <ToolbarButton
-        label="🗑 Wis alles"
+        label="Wis alles"
+        icon={{ ios: "trash", android: "delete" }}
         onPress={onClear}
         disabled={!canClear}
         tone="danger"
@@ -98,12 +106,15 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+    flexDirection: "row",
+    gap: spacing.xs + 2,
     paddingVertical: spacing.md,
     borderRadius: radius.sm,
     alignItems: "center",
+    justifyContent: "center",
   },
   buttonDisabled: { opacity: 0.35 },
   text: { fontWeight: "700", fontSize: 13 },
 });
 
-export default React.memo(DrawingToolbar);
+export default DrawingToolbar;

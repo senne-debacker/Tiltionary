@@ -2,13 +2,8 @@
 // Het eindscherm: podium met de top 3, daaronder de volledige stand.
 
 import React, { useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import * as Haptics from "expo-haptics";
 import PlayerRow from "@/components/player-row";
 import { toRanking } from "@/logic/scoring";
@@ -18,6 +13,7 @@ import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
 import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 
 const PODIUM_ORDER = [1, 0, 2]; // zilver links, goud in het midden, brons rechts
@@ -35,13 +31,23 @@ export default function PodiumScreen() {
   const ranking = toRanking(players);
   const winner = ranking[0];
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.background,
+          paddingTop: insets.top + spacing.lg,
+          paddingBottom: insets.bottom + spacing.lg,
+        },
+      ]}
+    >
       <ThemedText style={styles.title}>🏆 Eindstand</ThemedText>
       {!!winner && (
         <ThemedText themeColor="gold" style={styles.winner}>
@@ -76,20 +82,19 @@ export default function PodiumScreen() {
         })}
       </View>
 
-      <ScrollView
-        style={styles.scroll}
+      <FlashList
+        data={ranking}
+        keyExtractor={(player) => player.id}
         contentContainerStyle={styles.scrollContent}
-      >
-        {ranking.map((player, index) => (
+        renderItem={({ item: player, index }) => (
           <PlayerRow
-            key={player.id}
             player={player}
             rank={index}
             showScore
             isYou={player.id === playerId}
           />
-        ))}
-      </ScrollView>
+        )}
+      />
 
       <View style={styles.footer}>
         {isHost ? (
@@ -118,9 +123,7 @@ export default function PodiumScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 70,
     paddingHorizontal: spacing.xl,
-    paddingBottom: 40,
   },
   title: {
     fontSize: 32,
@@ -152,7 +155,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.sm,
     borderTopRightRadius: radius.sm,
   },
-  scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.md - 2 },
   footer: { marginTop: spacing.md },
   playAgain: {

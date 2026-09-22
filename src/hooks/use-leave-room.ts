@@ -2,13 +2,12 @@
 // De "verlaat/sluit kamer"-flow op één plek: bevestiging vragen, opruimen in
 // Firebase, en de lokale sessie wissen.
 
-import { useCallback } from "react";
 import { Alert } from "react-native";
 import { leaveRoom } from "@/logic/room";
 import { useSessionStore } from "@/hooks/use-session-store";
 
 export function useLeaveRoom() {
-  return useCallback(() => {
+  return () => {
     const { code, playerId, isHost, clearSession } = useSessionStore.getState();
 
     Alert.alert(
@@ -28,5 +27,5 @@ export function useLeaveRoom() {
         },
       ],
     );
-  }, []);
+  };
 }

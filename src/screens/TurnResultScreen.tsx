@@ -3,7 +3,8 @@
 // verdiend heeft.
 
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text, ScrollView } from "react-native";
+import { StyleSheet, View, Text } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
 import PlayerRow from "@/components/player-row";
@@ -15,6 +16,7 @@ import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
 import { spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import type { GuessedMap } from "@/types/game";
 
@@ -30,6 +32,7 @@ export default function TurnResultScreen() {
   const [guessed, setGuessed] = useState<GuessedMap>({});
   const msLeft = useCountdown(gameState?.phaseEndsAt);
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!roomCode) return;
@@ -47,7 +50,16 @@ export default function TurnResultScreen() {
   const ranking = toRanking(players);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.background,
+          paddingTop: insets.top + spacing.lg,
+          paddingBottom: insets.bottom + spacing.lg,
+        },
+      ]}
+    >
       <LeaveButton isHost={isHost} onPress={onLeave} style={styles.leaveButton} />
 
       <ThemedText themeColor="textMuted" style={styles.label}>
@@ -62,17 +74,16 @@ export default function TurnResultScreen() {
         {drawer ? ` · ${drawer.name} kreeg +${drawerBonus}` : ""}
       </ThemedText>
 
-      <ScrollView
-        style={styles.scroll}
+      <FlashList
+        data={ranking}
+        keyExtractor={(player) => player.id}
         contentContainerStyle={styles.scrollContent}
-      >
-        {ranking.map((player, index) => {
+        renderItem={({ item: player, index }) => {
           const entry = guessed[player.id];
           const gained =
             (entry?.points || 0) + (player.id === drawerId ? drawerBonus : 0);
           return (
             <PlayerRow
-              key={player.id}
               player={player}
               rank={index}
               showScore
@@ -81,8 +92,8 @@ export default function TurnResultScreen() {
               isDrawer={player.id === drawerId}
             />
           );
-        })}
-      </ScrollView>
+        }}
+      />
 
       <ThemedText themeColor="textDim" style={styles.next}>
         Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3} ·
@@ -95,9 +106,7 @@ export default function TurnResultScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 70,
     paddingHorizontal: spacing.xl,
-    paddingBottom: 40,
   },
   leaveButton: { marginBottom: spacing.sm - 2 },
   label: {
@@ -117,7 +126,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xl,
   },
-  scroll: { flex: 1 },
   scrollContent: { paddingBottom: spacing.md - 2 },
   next: {
     fontSize: 14,

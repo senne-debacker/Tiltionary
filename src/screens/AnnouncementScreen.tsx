@@ -11,6 +11,7 @@ import { useLeaveRoom } from "@/hooks/use-leave-room";
 import LeaveButton from "@/components/leave-button";
 import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 
 export default function AnnouncementScreen() {
@@ -26,6 +27,7 @@ export default function AnnouncementScreen() {
   const isYou = gameState?.currentDrawerId === playerId;
   const scale = useRef(new Animated.Value(0.7)).current;
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     Animated.timing(scale, {
@@ -39,7 +41,11 @@ export default function AnnouncementScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <LeaveButton isHost={isHost} onPress={onLeave} style={styles.leaveButton} />
+      <LeaveButton
+        isHost={isHost}
+        onPress={onLeave}
+        style={[styles.leaveButton, { top: insets.top + spacing.sm }]}
+      />
 
       <ThemedText themeColor="textMuted" style={styles.round}>
         Ronde {gameState?.currentRound || 1} van {settings?.maxRounds || 3}
@@ -79,7 +85,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: spacing.xxl,
   },
-  leaveButton: { position: "absolute", top: 55, right: spacing.xl },
+  leaveButton: { position: "absolute", right: spacing.xl },
   round: {
     fontSize: 16,
     fontWeight: "600",

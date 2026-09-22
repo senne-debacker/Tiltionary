@@ -36,7 +36,8 @@
     ],
     "scheme": "tiltionary",
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "reactCompiler": true
     }
   }
 }

@@ -2,7 +2,7 @@
 // Vrij tekenen om de besturing onder de knie te krijgen. Geen Firebase.
 // Kan de tekening ook opslaan in de fotobibliotheek of delen.
 
-import React, { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -19,6 +19,7 @@ import useTiltDrawing from "@/hooks/use-tilt-drawing";
 import { saveDrawingToLibrary, shareDrawing } from "@/logic/export-drawing";
 import { radius, spacing, shadow, INK_COLORS } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import type { LayoutChangeEvent } from "react-native";
 
@@ -31,6 +32,7 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
   const svgRef = useRef(null);
   const canvasSize = useRef<{ width: number; height: number } | null>(null);
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const {
     paths,
@@ -45,14 +47,11 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
     undo,
   } = useTiltDrawing({ enabled: true, color: inkColor });
 
-  const onCanvasLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      handleLayout(event);
-      const { width, height } = event.nativeEvent.layout;
-      canvasSize.current = { width, height };
-    },
-    [handleLayout],
-  );
+  const onCanvasLayout = (event: LayoutChangeEvent) => {
+    handleLayout(event);
+    const { width, height } = event.nativeEvent.layout;
+    canvasSize.current = { width, height };
+  };
 
   const hasDrawing = paths.length > 0;
 
@@ -93,7 +92,12 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.surface, paddingTop: insets.top + spacing.sm },
+        ]}
+      >
         <ThemedText style={styles.title}>Sandbox</ThemedText>
         <TouchableOpacity
           style={[
@@ -196,7 +200,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 60,
     paddingBottom: spacing.md + 3,
     paddingHorizontal: spacing.xl,
     gap: spacing.sm + 2,

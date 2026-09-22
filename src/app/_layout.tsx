@@ -8,6 +8,7 @@
 
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useDingSound } from "@/hooks/use-ding-sound";
 import { useSessionStore } from "@/hooks/use-session-store";
@@ -18,7 +19,7 @@ export default function RootLayout() {
   useDingSound();
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!code}>
@@ -31,6 +32,6 @@ export default function RootLayout() {
 
         <Stack.Screen name="sandbox" />
       </Stack>
-    </>
+    </SafeAreaProvider>
   );
 }

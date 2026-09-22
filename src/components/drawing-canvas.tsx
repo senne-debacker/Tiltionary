@@ -119,4 +119,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default React.memo(DrawingCanvas);
+export default DrawingCanvas;

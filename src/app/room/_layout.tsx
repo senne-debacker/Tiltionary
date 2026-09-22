@@ -19,9 +19,11 @@ import useHostEngine from "@/hooks/use-host-engine";
 import usePresence from "@/hooks/use-presence";
 import { serverNow } from "@/hooks/use-server-time";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function RoomLayout() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const code = useSessionStore((state) => state.code);
   const playerId = useSessionStore((state) => state.playerId);
@@ -99,7 +101,10 @@ export default function RoomLayout() {
           net weg), maar zonder dit voelt een bevroren scherm als een bug. */}
       {!isHost && !!gameState?.hostAwaySince && (
         <View
-          style={[styles.awayBanner, { backgroundColor: theme.warning }]}
+          style={[
+            styles.awayBanner,
+            { backgroundColor: theme.warning, paddingTop: insets.top + 8 },
+          ]}
           pointerEvents="none"
         >
           <Text style={styles.awayBannerText}>
@@ -117,7 +122,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: 50,
     paddingBottom: 10,
     alignItems: "center",
   },

@@ -53,4 +53,4 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: 3 },
 });
 
-export default React.memo(TimerBar);
+export default TimerBar;

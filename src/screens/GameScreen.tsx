@@ -2,7 +2,7 @@
 // Het hart van het spel: de tekenaar tekent, de rest raadt via de chat.
 // Dit scherm wordt gebruikt tijdens 'choosing' (woord kiezen) en 'playing'.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -37,6 +37,7 @@ import {
 import { startDrawingTurn, sendGuess } from "@/logic/room";
 import { canvas, radius, spacing, INK_COLORS } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import type {
   ChatMap,
@@ -58,6 +59,7 @@ export default function GameScreen() {
   const players = useRoomStore((state) => state.players);
   const settings = useRoomStore((state) => state.settings);
   const onLeave = useLeaveRoom();
+  const insets = useSafeAreaInsets();
 
   const isDrawer = gameState?.currentDrawerId === playerId;
   const isChoosing = gameState?.status === "choosing";
@@ -75,18 +77,11 @@ export default function GameScreen() {
 
   // ---- Tekenen ----
 
-  const handleSyncPoints = useCallback(
-    (payload: SyncPointsPayload) => syncPoints({ code: roomCode, ...payload }),
-    [roomCode],
-  );
-  const handleClearRemote = useCallback(
-    () => clearDrawing({ code: roomCode }),
-    [roomCode],
-  );
-  const handleUndoRemote = useCallback(
-    (pathIndex: number) => undoLastPath({ code: roomCode, pathIndex }),
-    [roomCode],
-  );
+  const handleSyncPoints = (payload: SyncPointsPayload) =>
+    syncPoints({ code: roomCode, ...payload });
+  const handleClearRemote = () => clearDrawing({ code: roomCode });
+  const handleUndoRemote = (pathIndex: number) =>
+    undoLastPath({ code: roomCode, pathIndex });
 
   const {
     paths: localPaths,
@@ -114,15 +109,12 @@ export default function GameScreen() {
 
   // De raders schalen de tekening naar hun eigen scherm. Daarvoor moeten ze
   // weten hoe groot het canvas van de tekenaar is.
-  const onCanvasLayout = useCallback(
-    (event: LayoutChangeEvent) => {
-      handleLayout(event);
-      const { width, height } = event.nativeEvent.layout;
-      canvasSize.current = { width, height };
-      if (isDrawer) publishCanvasSize({ code: roomCode, width, height });
-    },
-    [handleLayout, isDrawer, roomCode],
-  );
+  const onCanvasLayout = (event: LayoutChangeEvent) => {
+    handleLayout(event);
+    const { width, height } = event.nativeEvent.layout;
+    canvasSize.current = { width, height };
+    if (isDrawer) publishCanvasSize({ code: roomCode, width, height });
+  };
 
   useEffect(() => {
     if (!isDrawer || !isPlaying || !canvasSize.current) return;
@@ -147,24 +139,17 @@ export default function GameScreen() {
     return () => unsubscribers.forEach((off) => off());
   }, [roomCode]);
 
-  const messages = useMemo(
-    () =>
-      Object.entries(chat)
-        .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
-        .sort((a, b) => (a.at || 0) - (b.at || 0)),
-    [chat],
-  );
+  const messages = Object.entries(chat)
+    .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
 
-  const remotePaths = useMemo(
-    () => normalizePaths(remoteDrawing?.paths),
-    [remoteDrawing],
-  );
+  const remotePaths = normalizePaths(remoteDrawing?.paths);
 
-  const viewBox = useMemo(() => {
-    const size = remoteDrawing?.canvas;
-    if (isDrawer || !size?.width || !size?.height) return undefined;
-    return `0 0 ${size.width} ${size.height}`;
-  }, [isDrawer, remoteDrawing]);
+  const canvasDims = remoteDrawing?.canvas;
+  const viewBox =
+    isDrawer || !canvasDims?.width || !canvasDims?.height
+      ? undefined
+      : `0 0 ${canvasDims.width} ${canvasDims.height}`;
 
   // ---- Acties ----
 
@@ -174,25 +159,20 @@ export default function GameScreen() {
     startDrawingTurn({ code: roomCode, word, gameState, serverNow });
   };
 
-  // useCallback is hier belangrijk: tijdens het tekenen rendert dit scherm
-  // ~60x per seconde. Zonder dit zou de (memo'de) chat elke keer meerenderen.
-  const handleSend = useCallback(
-    async (text: string) => {
-      const result = await sendGuess({
-        code: roomCode,
-        playerId,
-        name: nickname,
-        text,
-        gameState,
-        serverNow,
-      });
-      if (result.correct && !result.already) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        playDing(); // alleen voor jezelf
-      }
-    },
-    [roomCode, playerId, nickname, gameState],
-  );
+  const handleSend = async (text: string) => {
+    const result = await sendGuess({
+      code: roomCode,
+      playerId,
+      name: nickname,
+      text,
+      gameState,
+      serverNow,
+    });
+    if (result.correct && !result.already) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playDing(); // alleen voor jezelf
+    }
+  };
 
   // ---- Weergave ----
 
@@ -225,7 +205,12 @@ export default function GameScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View style={[styles.header, { backgroundColor: theme.surface }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.surface, paddingTop: insets.top + spacing.sm },
+        ]}
+      >
         <View style={styles.headerTop}>
           <View>
             <ThemedText themeColor="textMuted" style={styles.round}>
@@ -322,7 +307,6 @@ export default function GameScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    paddingTop: 55,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.xl,
   },

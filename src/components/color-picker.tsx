@@ -62,4 +62,4 @@ const styles = StyleSheet.create({
   swatchSelected: { transform: [{ scale: 1.15 }] },
 });
 
-export default React.memo(ColorPicker);
+export default ColorPicker;

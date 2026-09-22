@@ -2,7 +2,7 @@
 // De wachtruimte. De host stelt hier het spel in en start het; iedereen kan
 // alvast chatten.
 
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -27,6 +27,7 @@ import {
 } from "@/logic/room";
 import { radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
@@ -106,6 +107,7 @@ export default function WaitingScreen() {
   const players = useRoomStore((state) => state.players);
   const settings = useRoomStore((state) => state.settings);
   const onLeave = useLeaveRoom();
+  const insets = useSafeAreaInsets();
 
   const activeSettings = settings || DEFAULT_SETTINGS;
   const playerList = Object.entries(players || {}).map(([id, p]) => ({
@@ -122,13 +124,9 @@ export default function WaitingScreen() {
     return () => unsubscribe();
   }, [roomCode]);
 
-  const messages = useMemo(
-    () =>
-      Object.entries(chat)
-        .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
-        .sort((a, b) => (a.at || 0) - (b.at || 0)),
-    [chat],
-  );
+  const messages = Object.entries(chat)
+    .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
+    .sort((a, b) => (a.at || 0) - (b.at || 0));
 
   const handleSendChat = (text: string) =>
     sendChatMessage({ code: roomCode, playerId, name: nickname, text });
@@ -169,7 +167,10 @@ export default function WaitingScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: theme.background, paddingTop: insets.top + spacing.sm },
+      ]}
     >
       <View style={styles.header}>
         <View>
@@ -277,7 +278,7 @@ export default function WaitingScreen() {
         />
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.xl }]}>
         {isHost ? (
           <TouchableOpacity
             style={[styles.startButton, { backgroundColor: theme.primary }]}
@@ -296,7 +297,7 @@ export default function WaitingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 60 },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -360,7 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm - 2,
     lineHeight: 20,
   },
-  footer: { padding: spacing.xl, paddingBottom: 40 },
+  footer: { padding: spacing.xl },
   startButton: {
     padding: spacing.lg,
     borderRadius: radius.md,

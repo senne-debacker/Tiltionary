@@ -1,6 +1,7 @@
 // src/components/chat-panel.tsx
-// Eigen state voor het invoerveld, en React.memo eromheen: tijdens het tekenen
-// rendert het spelscherm ~60x per seconde, en de chat hoeft dan niets te doen.
+// Houdt de tekst van het invoerveld in eigen state, zodat typen het spelscherm
+// niet laat hertekenen. Onnodig hertekenen tijdens het tekenen (~60x per
+// seconde) wordt door de React Compiler afgevangen.
 
 import React, { useRef, useState } from "react";
 import {
@@ -9,8 +10,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
 } from "react-native";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { SymbolView } from "expo-symbols";
 import { radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { StyleProp, ViewStyle } from "react-native";
@@ -59,7 +61,7 @@ function ChatPanel({
   style,
 }: ChatPanelProps) {
   const [text, setText] = useState("");
-  const listRef = useRef<FlatList<ChatMessageWithId>>(null);
+  const listRef = useRef<FlashListRef<ChatMessageWithId>>(null);
   const theme = useTheme();
 
   const send = () => {
@@ -71,7 +73,7 @@ function ChatPanel({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }, style]}>
-      <FlatList
+      <FlashList
         ref={listRef}
         data={messages}
         keyExtractor={(item) => item.id}
@@ -116,7 +118,12 @@ function ChatPanel({
           onPress={send}
           disabled={disabled}
         >
-          <Text style={styles.buttonText}>➤</Text>
+          <SymbolView
+            name={{ ios: "paperplane.fill", android: "send", web: "send" }}
+            tintColor="#FFFFFF"
+            size={20}
+            fallback={<Text style={styles.buttonText}>➤</Text>}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -150,4 +157,4 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
 });
 
-export default React.memo(ChatPanel);
+export default ChatPanel;

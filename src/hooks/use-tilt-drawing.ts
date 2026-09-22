@@ -111,6 +111,11 @@ export default function useTiltDrawing({
     // opnieuw bij 0 — geen aparte reset hier nodig.
   }, [color, enabled]);
 
+  // De useCallbacks hieronder blijven expres staan, ook nu de React Compiler
+  // aanstaat: `clear` zit in de dependency-array van een effect in het
+  // spelscherm. Zou die elke render een nieuwe functie zijn, dan liep dat
+  // effect continu opnieuw en werd het canvas onophoudelijk leeggemaakt.
+
   /** Alles wissen (bij een nieuwe beurt of via de "Wis alles"-knop). */
   const clear = useCallback(({ notifyRemote = false } = {}) => {
     setPaths([]);
