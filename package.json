@@ -4,7 +4,9 @@
   "main": "index.js",
   "dependencies": {
     "expo": "~57.0.23",
+    "expo-audio": "~57.0.5",
     "expo-haptics": "~57.0.3",
+    "expo-keep-awake": "~57.0.2",
     "expo-sensors": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "firebase": "^12.19.0",

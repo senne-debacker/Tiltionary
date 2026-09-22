@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { db } from './firebaseConfig';
 import { ref, onValue } from 'firebase/database';
 
@@ -20,14 +21,30 @@ export default function App() {
   const [playerId, setPlayerId] = useState('');
   const [nickname, setNickname] = useState('');
 
+  // De ding-sound wordt hier centraal beheerd (App.js unmount't nooit),
+  // zodat een scherm-wissel naar WinScreen het geluid niet afkapt.
+  const dingPlayer = useAudioPlayer(require('./assets/ding.mp3'));
+  const hasPlayedWinSound = useRef(false);
+
+  useEffect(() => {
+    async function setupAudio() {
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true });
+      } catch (e) {
+        console.log('Audio mode error:', e);
+      }
+    }
+    setupAudio();
+  }, []);
+
 // 2. De Firebase Watcher (Luistert of de kamer wijzigt)
   useEffect(() => {
     if (!roomCode) return;
     const roomRef = ref(db, `rooms/${roomCode}`);
-    
+
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
-      
+
       if (!data) {
         setAppState('lobby');
         setRoomCode('');
@@ -45,10 +62,37 @@ export default function App() {
 
       // De nieuwe gameState checken!
       const state = data.gameState?.status;
+      const actueelWoord = data.gameState?.currentWord;
 
-      // Als de host op START klikt, verandert de status naar 'playing'
+      // Haal het woord op
+      if (actueelWoord) {
+        setWordToDraw(actueelWoord);
+      }
+
+      // Start het spel
       if (state === 'playing' && appState !== 'playing') {
         setAppState('playing');
+        hasPlayedWinSound.current = false; // nieuw potje, geluid mag weer afspelen
+      }
+
+      // Check of er een winnaar is in de NIEUWE database structuur
+      if (data.gameState?.winner) {
+        setAppState('won');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // Speel de ding maar 1x per potje af, en alleen voor de rader.
+        // Dit gebeurt hier (in App.js, dat nooit unmount't) in plaats van in
+        // GameScreen, omdat GameScreen meteen wordt vervangen door WinScreen
+        // zodra 'winner' true wordt, waardoor het geluid daar werd
+        // afgebroken voor je het kon horen.
+        if (!hasPlayedWinSound.current && role === 'guest') {
+          hasPlayedWinSound.current = true;
+          try {
+            dingPlayer.seekTo(0).finally(() => dingPlayer.play());
+          } catch (e) {
+            console.log('Fout bij afspelen ding:', e);
+          }
+        }
       }
 
       // Live de getekende lijnen updaten (als je kijker bent)
@@ -58,7 +102,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [roomCode, appState, role, playerId]); // <-- Zorg dat playerId hierbij staat!
+  }, [roomCode, appState, role, playerId]);
 
   // 3. De Verkeersregelaar (Welk scherm moeten we tonen?)
 if (appState === 'lobby') {
