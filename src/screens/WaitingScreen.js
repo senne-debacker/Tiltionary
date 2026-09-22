@@ -1,5 +1,6 @@
 // src/screens/WaitingScreen.js
-// De wachtruimte. De host stelt hier het spel in en start het.
+// De wachtruimte. De host stelt hier het spel in en start het; iedereen kan
+// alvast chatten.
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -24,7 +25,7 @@ import {
   sendChatMessage,
   DEFAULT_SETTINGS,
 } from "../logic/room";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing } from "../theme";
 
 const ROUND_OPTIONS = [1, 2, 3, 4, 5];
 const TIMER_OPTIONS = [30, 45, 60, 90, 120];
@@ -233,20 +234,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   codeLabel: { color: colors.textMuted, fontSize: 13 },
   code: {
-    color: colors.success,
+    color: colors.primary,
     fontSize: 34,
-    fontWeight: "bold",
+    fontWeight: "800",
     letterSpacing: 6,
   },
   leaveButton: {
     backgroundColor: colors.surfaceLighter,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
     borderRadius: radius.sm,
   },
   leaveText: { color: colors.danger, fontWeight: "bold" },
@@ -259,25 +260,25 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     fontWeight: "bold",
-    paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
   },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  scrollContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
   sectionTitle: {
     color: colors.textMuted,
     fontSize: 14,
     fontWeight: "bold",
     textTransform: "uppercase",
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
-  settingBlock: { marginBottom: 16 },
-  settingLabel: { color: colors.text, fontSize: 15, marginBottom: 8 },
-  optionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  settingBlock: { marginBottom: spacing.lg },
+  settingLabel: { color: colors.text, fontSize: 15, marginBottom: spacing.sm },
+  optionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: {
     backgroundColor: colors.surfaceLighter,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md + 2,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: "transparent",
@@ -291,9 +292,9 @@ const styles = StyleSheet.create({
   optionTextSelected: { color: colors.text },
   rules: {
     backgroundColor: colors.surfaceLight,
-    padding: 18,
+    padding: spacing.lg + 2,
     borderRadius: radius.md,
-    marginTop: 20,
+    marginTop: spacing.xl,
     borderWidth: 1,
     borderColor: colors.success,
   },
@@ -301,18 +302,18 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontSize: 17,
     fontWeight: "bold",
-    marginBottom: 10,
+    marginBottom: spacing.md,
   },
   rulesText: {
     color: colors.text,
     fontSize: 14,
-    marginBottom: 6,
+    marginBottom: spacing.sm - 2,
     lineHeight: 20,
   },
-  footer: { padding: 20, paddingBottom: 40 },
+  footer: { padding: spacing.xl, paddingBottom: 40 },
   startButton: {
     backgroundColor: colors.primary,
-    padding: 20,
+    padding: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
   },

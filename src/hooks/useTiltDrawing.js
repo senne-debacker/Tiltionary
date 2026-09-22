@@ -24,7 +24,7 @@ const UPDATE_INTERVAL_MS = 16; // ~60 fps
 
 export default function useTiltDrawing({
   enabled = true,
-  color = INK, // huidige inktkleur; geldt voor de VOLGENDE lijn
+  color = INK, // huidige inktkleur; wisselen splitst de lopende lijn meteen
   onSyncPoints, // ({ pathIndex, startIndex, points, color }) => void
   onClearRemote, // () => void
   onUndoRemote, // (removedPathIndex) => void

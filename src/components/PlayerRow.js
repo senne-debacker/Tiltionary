@@ -1,7 +1,9 @@
 // src/components/PlayerRow.js
+// Eén rij in een spelerslijst: naam, eventueel medaille/score/kick-knop.
+
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing } from "../theme";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
@@ -47,18 +49,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: colors.surfaceLighter,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg - 1,
+    paddingVertical: spacing.md,
     borderRadius: radius.sm,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   rowYou: { borderWidth: 1, borderColor: colors.primary },
   left: { flexDirection: "row", alignItems: "center", flex: 1 },
   right: { flexDirection: "row", alignItems: "center" },
-  rank: { fontSize: 16, marginRight: 10, color: colors.textMuted, width: 28 },
+  rank: { fontSize: 16, marginRight: spacing.sm + 2, color: colors.textMuted, width: 28 },
   name: { color: colors.text, fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  score: { color: colors.text, fontSize: 17, fontWeight: "bold", minWidth: 50, textAlign: "right" },
-  gained: { color: colors.success, fontSize: 15, fontWeight: "bold", marginRight: 10 },
+  score: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "bold",
+    minWidth: 50,
+    textAlign: "right",
+  },
+  gained: {
+    color: colors.success,
+    fontSize: 15,
+    fontWeight: "bold",
+    marginRight: spacing.sm + 2,
+  },
   kick: {
     backgroundColor: colors.danger,
     width: 28,
@@ -66,7 +79,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 12,
+    marginLeft: spacing.md,
   },
   kickText: { color: colors.text, fontWeight: "bold", fontSize: 14 },
 });

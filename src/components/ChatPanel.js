@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing } from "../theme";
 
 function Message({ item }) {
   if (item.type === "system") {
@@ -74,7 +74,7 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
           onSubmitEditing={send}
           editable={!disabled}
           returnKeyType="send"
-          blurOnSubmit={false}
+          submitBehavior="submit"
           maxLength={40}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -94,32 +94,32 @@ function ChatPanel({ messages = [], onSend, disabled, placeholder, style }) {
 const styles = StyleSheet.create({
   container: { backgroundColor: colors.surface },
   list: { maxHeight: 150 },
-  listContent: { padding: 12, paddingBottom: 4 },
+  listContent: { padding: spacing.md, paddingBottom: spacing.xs },
   empty: { color: colors.textDim, fontStyle: "italic", fontSize: 13 },
-  message: { color: colors.text, fontSize: 14, marginBottom: 4 },
+  message: { color: colors.text, fontSize: 14, marginBottom: spacing.xs },
   author: { fontWeight: "bold", color: colors.textMuted },
   system: {
     color: colors.warning,
     fontSize: 14,
     fontStyle: "italic",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   systemSuccess: { color: colors.success, fontWeight: "bold" },
-  inputRow: { flexDirection: "row", padding: 12, paddingTop: 4 },
+  inputRow: { flexDirection: "row", padding: spacing.md, paddingTop: spacing.xs },
   input: {
     flex: 1,
     backgroundColor: colors.surfaceLighter,
     color: colors.text,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg - 1,
+    paddingVertical: spacing.md,
     borderRadius: radius.sm,
-    marginRight: 10,
+    marginRight: spacing.sm + 2,
     fontSize: 16,
   },
   inputDisabled: { opacity: 0.4 },
   button: {
-    backgroundColor: colors.success,
-    paddingHorizontal: 18,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg + 2,
     borderRadius: radius.sm,
     justifyContent: "center",
   },

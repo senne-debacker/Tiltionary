@@ -6,7 +6,7 @@ import { StyleSheet, View, Text, Animated, Easing } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useCountdown } from "../hooks/useServerTime";
 import LeaveButton from "../components/LeaveButton";
-import { colors } from "../theme";
+import { colors, radius, spacing, shadow } from "../theme";
 
 export default function AnnouncementScreen({
   gameState,
@@ -65,38 +65,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     justifyContent: "center",
     alignItems: "center",
-    padding: 30,
+    padding: spacing.xxl,
   },
-  leaveButton: { position: "absolute", top: 55, right: 20 },
+  leaveButton: { position: "absolute", top: 55, right: spacing.xl },
   round: {
     color: colors.textMuted,
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 30,
+    marginBottom: spacing.xxl,
   },
   card: {
     backgroundColor: colors.surfaceLight,
     paddingVertical: 40,
-    paddingHorizontal: 30,
-    borderRadius: 24,
+    paddingHorizontal: spacing.xxl,
+    borderRadius: radius.lg,
     alignItems: "center",
     width: "100%",
     borderWidth: 2,
     borderColor: colors.primary,
+    ...shadow.md,
   },
-  emoji: { fontSize: 56, marginBottom: 12 },
+  emoji: { fontSize: 56, marginBottom: spacing.md },
   name: { color: colors.text, fontSize: 34, fontWeight: "bold" },
-  action: { color: colors.primary, fontSize: 20, marginTop: 6 },
+  action: { color: colors.primary, fontSize: 20, marginTop: spacing.xs + 2 },
   hint: {
     color: colors.textMuted,
     fontSize: 15,
     textAlign: "center",
-    marginTop: 30,
+    marginTop: spacing.xxl,
   },
   countdown: {
     color: colors.textDim,
     fontSize: 60,
     fontWeight: "bold",
-    marginTop: 20,
+    marginTop: spacing.xl,
   },
 });

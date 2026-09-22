@@ -109,10 +109,10 @@ export default function App() {
     if (!session.code || !loaded || leavingRef.current) return;
 
     if (!gameState) {
-      // Dit vuurt zowel wanneer de host bewust "Sluiten" indrukt, als
-      // wanneer Firebase's onDisconnect de kamer opruimt omdat de host de
-      // app sloot/crashte/de genadetijd overschreed (zie usePresence.js) —
-      // voor de speler ziet dat er hetzelfde uit: de host is er niet meer.
+      // Dit vuurt zowel wanneer de host bewust "Sluiten" indrukt, als wanneer
+      // Firebase's onDisconnect de kamer opruimt (app dicht, crash, of de
+      // genadetijd overschreden — zie usePresence.js). Voor de speler voelt
+      // dat hetzelfde: de host is er niet meer.
       goHome();
       Alert.alert("Host is weg", "De host heeft het spel verlaten.");
       return;
@@ -125,7 +125,7 @@ export default function App() {
     }
   }, [session.code, session.playerId, loaded, gameState, players, goHome]);
 
-  // ------------------------------------------------------------- Routing
+  // ---- Routing ----
 
   if (sandbox) {
     return (
@@ -184,8 +184,8 @@ export default function App() {
     <>
       <StatusBar style="light" />
       {screens[gameState.status] || <WaitingScreen {...shared} />}
-      {/* De host ziet dit uiteraard niet zelf (die is net weg) — dit is puur
-          voor de gasten, zodat een bevroren scherm niet als een bug aanvoelt. */}
+      {/* Puur voor de gasten: de host ziet dit uiteraard niet zelf (die is
+          net weg), maar zonder dit voelt een bevroren scherm als een bug. */}
       {!session.isHost && !!gameState.hostAwaySince && (
         <View style={styles.awayBanner} pointerEvents="none">
           <Text style={styles.awayBannerText}>⏳ Host is even weg... het spel wacht.</Text>
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     alignItems: "center",
   },
-  awayBannerText: { color: "#1a1a1a", fontWeight: "700", fontSize: 13 },
+  awayBannerText: { color: "#1A1625", fontWeight: "700", fontSize: 13 },
   loading: {
     flex: 1,
     backgroundColor: colors.background,

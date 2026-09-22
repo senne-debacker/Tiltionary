@@ -1,11 +1,10 @@
 // src/components/DrawingToolbar.js
-// Wis-alles en ongedaan-maken knoppen, plus (optioneel) een "klaar/delen"-knop
-// voor de sandbox. Vervangt de oude schud-om-te-wissen gebaar: dat triggerde
-// te makkelijk per ongeluk.
+// Wis-alles en ongedaan-maken knoppen. Vervangt het oude schud-om-te-wissen
+// gebaar: dat triggerde te makkelijk per ongeluk.
 
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing } from "../theme";
 
 function ToolbarButton({ label, onPress, disabled, tone = "default" }) {
   return (
@@ -42,20 +41,20 @@ function DrawingToolbar({ onUndo, canUndo, onClear, canClear, extra }) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 4,
+    gap: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.xs,
     backgroundColor: colors.surface,
   },
   button: {
     flex: 1,
     backgroundColor: colors.surfaceLighter,
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
     borderRadius: radius.sm,
     alignItems: "center",
   },
-  buttonDanger: { backgroundColor: "rgba(255,59,48,0.18)" },
+  buttonDanger: { backgroundColor: "rgba(251,75,75,0.18)" },
   buttonPrimary: { backgroundColor: colors.primary },
   buttonDisabled: { opacity: 0.35 },
   text: { color: colors.text, fontWeight: "700", fontSize: 13 },

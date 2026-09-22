@@ -17,7 +17,7 @@ import ColorPicker from "../components/ColorPicker";
 import DrawingToolbar from "../components/DrawingToolbar";
 import useTiltDrawing from "../hooks/useTiltDrawing";
 import { saveDrawingToLibrary, shareDrawing } from "../logic/exportDrawing";
-import { colors, radius, INK_COLORS } from "../theme";
+import { colors, radius, spacing, shadow, INK_COLORS } from "../theme";
 
 export default function SandboxScreen({ onExit }) {
   useKeepAwake();
@@ -171,24 +171,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingTop: 60,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
+    paddingBottom: spacing.md + 3,
+    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
-    gap: 10,
+    gap: spacing.sm + 2,
   },
   title: { color: colors.text, fontSize: 20, fontWeight: "bold", flex: 1 },
   finishButton: {
     backgroundColor: colors.success,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.md + 3,
+    paddingVertical: spacing.sm,
     borderRadius: radius.sm,
   },
   finishButtonDisabled: { opacity: 0.35 },
   finishText: { color: colors.text, fontWeight: "bold" },
   exitButton: {
     backgroundColor: colors.danger,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.md + 3,
+    paddingVertical: spacing.sm,
     borderRadius: radius.sm,
   },
   actionText: { color: colors.text, fontWeight: "bold" },
@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
     color: colors.textDim,
     fontSize: 12,
     textAlign: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: spacing.md + 2,
+    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
   },
   overlay: {
@@ -206,30 +206,36 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(13,10,23,0.85)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 30,
+    padding: spacing.xxl,
   },
   sheet: {
     backgroundColor: colors.surfaceLight,
     borderRadius: radius.lg,
-    padding: 26,
+    padding: spacing.xl + 6,
     width: "100%",
     alignItems: "center",
+    ...shadow.md,
   },
   sheetTitle: { color: colors.text, fontSize: 22, fontWeight: "bold" },
-  sheetSub: { color: colors.textMuted, fontSize: 14, marginTop: 4, marginBottom: 20 },
+  sheetSub: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+  },
   sheetButton: {
     backgroundColor: colors.primary,
-    paddingVertical: 15,
+    paddingVertical: spacing.lg - 1,
     borderRadius: radius.md,
     width: "100%",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   sheetButtonText: { color: colors.text, fontSize: 16, fontWeight: "bold" },
-  spinner: { marginVertical: 20 },
-  sheetClose: { marginTop: 6, padding: 10 },
+  spinner: { marginVertical: spacing.xl },
+  sheetClose: { marginTop: spacing.xs + 2, padding: spacing.sm + 2 },
   sheetCloseText: { color: colors.textMuted, fontSize: 14 },
 });

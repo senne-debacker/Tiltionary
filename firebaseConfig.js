@@ -1,8 +1,10 @@
 // firebaseConfig.js
+// Verbindt de app met het Firebase-project (Realtime Database). Deze
+// gegevens komen rechtstreeks uit de Firebase-projectinstellingen.
+
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
-// VUL HIER JOUW EIGEN GEGEVENS IN DIE JE UIT FIREBASE HEBT GEKOPIEERD:
 const firebaseConfig = {
   apiKey: "AIzaSyA29W_9UbbJgIM8sdVfBZsL03cnC4bxQps",
   authDomain: "tiltionary.firebaseapp.com",

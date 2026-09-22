@@ -1,4 +1,7 @@
 // src/components/TimerBar.js
+// Voortgangsbalk voor de beurttimer: groen -> amber -> rood naarmate de tijd
+// opraakt.
+
 import React from "react";
 import { StyleSheet, View, Text } from "react-native";
 import { colors } from "../theme";
@@ -6,8 +9,6 @@ import { colors } from "../theme";
 function TimerBar({ msLeft, totalMs, label }) {
   const seconds = Math.ceil(msLeft / 1000);
   const ratio = totalMs > 0 ? Math.max(0, Math.min(1, msLeft / totalMs)) : 0;
-
-  // Groen -> oranje -> rood naarmate de tijd opraakt.
   const color =
     ratio > 0.5 ? colors.success : ratio > 0.2 ? colors.warning : colors.danger;
 

@@ -13,7 +13,7 @@ import * as Haptics from "expo-haptics";
 import PlayerRow from "../components/PlayerRow";
 import { toRanking } from "../logic/scoring";
 import { playAgain } from "../logic/room";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing, shadow } from "../theme";
 
 const PODIUM_ORDER = [1, 0, 2]; // zilver links, goud in het midden, brons rechts
 const PODIUM_HEIGHTS = [110, 80, 60];
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingTop: 70,
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
     paddingBottom: 40,
   },
   title: {
@@ -125,14 +125,14 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontSize: 17,
     textAlign: "center",
-    marginTop: 6,
+    marginTop: spacing.xs + 2,
   },
   podium: {
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "center",
-    marginVertical: 24,
-    gap: 8,
+    marginVertical: spacing.xl + 4,
+    gap: spacing.sm,
   },
   podiumSlot: { flex: 1, alignItems: "center" },
   podiumMedal: { fontSize: 26 },
@@ -140,22 +140,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: "bold",
-    marginTop: 2,
+    marginTop: spacing.xs - 2,
   },
-  podiumScore: { color: colors.textMuted, fontSize: 13, marginBottom: 6 },
+  podiumScore: { color: colors.textMuted, fontSize: 13, marginBottom: spacing.sm - 2 },
   podiumBlock: {
     width: "100%",
     borderTopLeftRadius: radius.sm,
     borderTopRightRadius: radius.sm,
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 10 },
-  footer: { marginTop: 12 },
+  scrollContent: { paddingBottom: spacing.md - 2 },
+  footer: { marginTop: spacing.md },
   playAgain: {
     backgroundColor: colors.primary,
-    padding: 20,
+    padding: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
+    ...shadow.md,
   },
   playAgainText: {
     color: colors.text,
@@ -168,8 +169,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontStyle: "italic",
     textAlign: "center",
-    paddingVertical: 12,
+    paddingVertical: spacing.md,
   },
-  leave: { padding: 14, alignItems: "center" },
+  leave: { padding: spacing.md + 2, alignItems: "center" },
   leaveText: { color: colors.danger, fontSize: 15, fontWeight: "600" },
 });

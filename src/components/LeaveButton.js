@@ -5,7 +5,7 @@
 
 import React from "react";
 import { StyleSheet, TouchableOpacity, Text } from "react-native";
-import { colors, radius } from "../theme";
+import { colors, radius, spacing } from "../theme";
 
 export default function LeaveButton({ isHost, onPress, style }) {
   return (
@@ -18,9 +18,9 @@ export default function LeaveButton({ isHost, onPress, style }) {
 const styles = StyleSheet.create({
   button: {
     alignSelf: "flex-end",
-    backgroundColor: "rgba(255,59,48,0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: "rgba(251,75,75,0.15)",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.sm,
   },
   text: { color: colors.danger, fontWeight: "700", fontSize: 12 },

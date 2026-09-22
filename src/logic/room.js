@@ -92,7 +92,7 @@ export function normalizeWord(text = "") {
   return text.trim().toUpperCase().replace(/[\s-]/g, "");
 }
 
-// ---------------------------------------------------------------- Kamer maken
+// ---- Kamer maken ----
 
 export async function createRoom({ name }) {
   const code = Math.floor(1000 + Math.random() * 9000).toString();
@@ -160,7 +160,7 @@ export async function leaveRoom({ code, playerId, isHost }) {
   }
 }
 
-// --------------------------------------------------------------- Aanwezigheid
+// ---- Aanwezigheid ----
 //
 // "Aanwezigheid" = weten of een speler nog echt verbonden is. We gebruiken
 // Firebase's onDisconnect(): dat is een instructie die de SERVER uitvoert
@@ -195,7 +195,7 @@ export function updateSettings({ code, patch }) {
   return update(ref(db, `${roomPath(code)}/settings`), patch);
 }
 
-// ------------------------------------------------------------- Spel besturing
+// ---- Spel besturing ----
 
 export async function startGame({ code, players, settings, serverNow }) {
   const ids = Object.keys(players || {});
@@ -357,7 +357,7 @@ export async function playAgain({ code, players }) {
   await update(ref(db), updates);
 }
 
-// --------------------------------------------------------------------- Chat
+// ---- Chat ----
 
 export function sendSystemMessage({ code, text, tone = "info" }) {
   return push(ref(db, `${roomPath(code)}/chat`), {

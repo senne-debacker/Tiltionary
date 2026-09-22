@@ -10,7 +10,7 @@ import PlayerRow from "../components/PlayerRow";
 import LeaveButton from "../components/LeaveButton";
 import { toRanking } from "../logic/scoring";
 import { useCountdown } from "../hooks/useServerTime";
-import { colors } from "../theme";
+import { colors, spacing } from "../theme";
 
 export default function TurnResultScreen({
   roomCode,
@@ -89,10 +89,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingTop: 70,
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
     paddingBottom: 40,
   },
-  leaveButton: { marginBottom: 6 },
+  leaveButton: { marginBottom: spacing.sm - 2 },
   label: {
     color: colors.textMuted,
     fontSize: 15,
@@ -104,21 +104,21 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     letterSpacing: 2,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   summary: {
     color: colors.success,
     fontSize: 15,
     textAlign: "center",
-    marginTop: 12,
-    marginBottom: 20,
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
   },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 10 },
+  scrollContent: { paddingBottom: spacing.md - 2 },
   next: {
     color: colors.textDim,
     fontSize: 14,
     textAlign: "center",
-    marginTop: 12,
+    marginTop: spacing.md,
   },
 });

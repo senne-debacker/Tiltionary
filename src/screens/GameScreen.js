@@ -31,7 +31,7 @@ import {
   normalizePaths,
 } from "../logic/drawing";
 import { startDrawingTurn, sendGuess } from "../logic/room";
-import { colors, radius, INK_COLORS } from "../theme";
+import { colors, radius, spacing, INK_COLORS } from "../theme";
 
 export default function GameScreen({
   roomCode,
@@ -60,7 +60,7 @@ export default function GameScreen({
   const msLeft = useCountdown(gameState?.phaseEndsAt, serverNow);
   const haveGuessed = !!guessed[playerId];
 
-  // --------------------------------------------------------------- Tekenen
+  // ---- Tekenen ----
 
   const handleSyncPoints = useCallback(
     (payload) => syncPoints({ code: roomCode, ...payload }),
@@ -116,7 +116,7 @@ export default function GameScreen({
     publishCanvasSize({ code: roomCode, ...canvasSize.current });
   }, [isDrawer, isPlaying, roomCode, gameState?.currentWord]);
 
-  // ---------------------------------------------------------- Live data
+  // ---- Live data ----
 
   useEffect(() => {
     if (!roomCode) return;
@@ -153,7 +153,7 @@ export default function GameScreen({
     return `0 0 ${size.width} ${size.height}`;
   }, [isDrawer, remoteDrawing]);
 
-  // ------------------------------------------------------------ Acties
+  // ---- Acties ----
 
   const handleChooseWord = (word) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -180,7 +180,7 @@ export default function GameScreen({
     [roomCode, playerId, nickname, gameState, serverNow, onCorrectGuess],
   );
 
-  // ------------------------------------------------------------- Weergave
+  // ---- Weergave ----
 
   const guessers = Object.keys(players || {}).filter(
     (id) => id !== gameState?.currentDrawerId,
@@ -309,15 +309,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingTop: 55,
-    paddingBottom: 12,
-    paddingHorizontal: 20,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.xl,
     backgroundColor: colors.surface,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   round: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   guessCount: { color: colors.success, fontSize: 13, fontWeight: "600" },
@@ -332,23 +332,22 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     textAlign: "center",
-    marginTop: 2,
-    marginBottom: 10,
+    marginTop: spacing.xs - 2,
+    marginBottom: spacing.sm + 2,
   },
   overlay: {
     // Expliciet uitgeschreven: StyleSheet.absoluteFillObject bestaat niet meer
-    // in React Native 0.86. Spreaden van undefined geeft geen foutmelding,
-    // waardoor dit blok stilletjes zijn absolute positie verloor en onder het
-    // canvas viel (en door overflow:hidden onzichtbaar werd).
+    // in React Native 0.86 — spreaden van undefined faalt stil en dit blok
+    // zou zijn absolute positie kwijtraken.
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(13,10,23,0.9)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 30,
+    padding: spacing.xxl,
   },
   overlayTitle: {
     color: colors.text,
@@ -359,16 +358,16 @@ const styles = StyleSheet.create({
   overlaySub: {
     color: colors.textMuted,
     fontSize: 14,
-    marginTop: 6,
-    marginBottom: 24,
+    marginTop: spacing.sm - 2,
+    marginBottom: spacing.xxl - 4,
     textAlign: "center",
   },
   wordButton: {
     backgroundColor: colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 30,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xxl,
     borderRadius: radius.md,
-    marginBottom: 12,
+    marginBottom: spacing.md,
     width: "100%",
     alignItems: "center",
   },

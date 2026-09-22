@@ -1,4 +1,6 @@
 // src/components/DrawingCanvas.js
+// Het tekenvlak: rendert de opgeslagen lijnen plus (optioneel) het balletje.
+
 import React, { forwardRef } from "react";
 import { StyleSheet, View, Text } from "react-native";
 import Svg, { Polyline, Circle } from "react-native-svg";
