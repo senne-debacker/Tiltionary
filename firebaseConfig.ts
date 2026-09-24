@@ -1,6 +1,5 @@
-// firebaseConfig.ts
-// Verbindt de app met het Firebase-project (Realtime Database). Deze
-// gegevens komen rechtstreeks uit de Firebase-projectinstellingen.
+// Connects the app to the Firebase project and its Realtime Database. These
+// values come from the Firebase project settings.
 
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
@@ -15,8 +14,6 @@ const firebaseConfig = {
   appId: "1:370991961325:web:0069cb40f915ac08c028e4"
 };
 
-// Initialiseer Firebase
 const app = initializeApp(firebaseConfig);
 
-// Exporteer de database zodat we die in App.js kunnen gebruiken
 export const db = getDatabase(app);

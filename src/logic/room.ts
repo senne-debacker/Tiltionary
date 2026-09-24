@@ -1,8 +1,7 @@
-// src/logic/room.ts
-// Alle schrijfacties naar Firebase zitten hier. De schermen roepen deze
-// functies aan en hoeven zelf niets van de databasestructuur te weten.
+// Every write to a room in Firebase. Screens call these functions and never
+// need to know how the database is structured.
 //
-// Structuur van een kamer:
+// Structure of a room:
 //   rooms/{code}/settings   { maxRounds, timerSeconds, wordPack }
 //   rooms/{code}/gameState  { status, currentRound, turnIndex, turnOrder, ... }
 //   rooms/{code}/players/{playerId}  { name, isHost, score }
@@ -30,16 +29,17 @@ import type {
   RoomSettings,
 } from "@/types/game";
 
-/** Servertijd in ms — zie serverNow() in use-server-time.ts. */
+/** Server time in milliseconds, see serverNow() in use-server-time.ts. */
 type ServerNow = () => number;
 
-// Hoe lang elke fase duurt (in ms)
-export const ANNOUNCE_MS = 5000; // "Speler X tekent!"
-export const CHOOSE_MS = 15000; // tijd om 1 van de 3 woorden te kiezen
-export const RESULT_MS = 6000; // tussenstand na elke beurt
+/** How long "Player X is drawing" is shown. */
+export const ANNOUNCE_MS = 5000;
+/** Time the drawer gets to pick one of three words. */
+export const CHOOSE_MS = 15000;
+/** How long the standings are shown after each turn. */
+export const RESULT_MS = 6000;
 
-// Hoe lang we een AFWEZIGE (maar niet gesloten) host de kans geven om terug
-// te komen voor we de kamer alsnog opruimen. Zie use-presence.ts.
+/** How long a backgrounded host gets to come back, see use-presence.ts. */
 export const HOST_AWAY_GRACE_MS = 20000;
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -51,19 +51,19 @@ export const DEFAULT_SETTINGS: RoomSettings = {
 const roomPath = (code: string) => `rooms/${code}`;
 const indexPath = (code: string) => `roomIndex/${code}`;
 
-// Kamers die niemand netjes afsluit bleven voor altijd in de database staan.
-// Daarom houden we per kamer één tijdstempel bij in een klein lijstje
-// (roomIndex), en ruimt de eerstvolgende host de oude kamers op. We lezen
-// alleen dat lijstje: de kamers zelf bevatten tekeningen en zijn veel groter.
-const STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6 uur
+// Rooms nobody closes properly would stay in the database forever. So each
+// room keeps one timestamp in a small list (roomIndex), and the next host
+// removes old rooms. Only that list is read, because rooms hold drawings and
+// are much bigger.
+const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 
-/** Markeert een kamer als "nog in gebruik". */
+/** Marks a room as still in use. */
 export function touchRoom(code: string): Promise<void> {
   if (!code) return Promise.resolve();
   return set(ref(db, indexPath(code)), Date.now());
 }
 
-/** Verwijdert een kamer én zijn plekje in het lijstje. */
+/** Removes a room and its entry in the room index. */
 export function removeRoom(code: string): Promise<[void, void]> {
   return Promise.all([
     remove(ref(db, roomPath(code))),
@@ -72,8 +72,8 @@ export function removeRoom(code: string): Promise<[void, void]> {
 }
 
 /**
- * Ruimt kamers op waar al uren niets meer gebeurd is. Wordt aangeroepen als
- * iemand een nieuwe kamer maakt, zodat het vanzelf schoon blijft.
+ * Removes rooms that have been idle for hours. Runs whenever someone creates
+ * a room, so the database cleans itself up.
  */
 export async function cleanupStaleRooms({ now = Date.now() } = {}): Promise<
   string[]
@@ -98,13 +98,14 @@ function shuffle<T>(list: T[]): T[] {
   return out;
 }
 
-/** Vergelijkt een gok met het woord: hoofdletters en spaties maken niet uit. */
+/** Normalizes a guess so case, spaces and dashes do not matter. */
 export function normalizeWord(text = ""): string {
   return text.trim().toUpperCase().replace(/[\s-]/g, "");
 }
 
-// ---- Kamer maken ----
+// ---- Rooms ----
 
+/** Creates a room with a random four-digit code and joins it as host. */
 export async function createRoom({
   name,
 }: {
@@ -134,6 +135,7 @@ export async function createRoom({
   return { code, playerId };
 }
 
+/** Joins an existing room that is still in the lobby. */
 export async function joinRoom({
   code,
   name,
@@ -161,11 +163,12 @@ export async function joinRoom({
   return { playerId };
 }
 
+/** Removes a player from the room. Host only. */
 export function kickPlayer({ code, playerId }: { code: string; playerId: string }): Promise<void> {
   return remove(ref(db, `${roomPath(code)}/players/${playerId}`));
 }
 
-/** Host sluit de kamer, gast verlaat hem alleen zelf. */
+/** Closes the room for a host, or removes only yourself for a guest. */
 export async function leaveRoom({
   code,
   playerId,
@@ -176,10 +179,8 @@ export async function leaveRoom({
   isHost: boolean;
 }): Promise<void> {
   if (!code) return;
-  // Dit was een NETTE exit: het bijbehorende onDisconnect-verwijderplannetje
-  // (zie attachHostDisconnect/attachPlayerDisconnect) is dan overbodig. Niet
-  // annuleren is ook geen ramp (verwijderen van iets dat al weg is, doet
-  // niets), maar dit voorkomt een nutteloze latere schrijfactie.
+  // A clean exit makes the planned onDisconnect removal unnecessary.
+  // Cancelling it avoids a pointless write later.
   if (isHost) {
     onDisconnect(ref(db, roomPath(code))).cancel();
     await removeRoom(code);
@@ -189,43 +190,42 @@ export async function leaveRoom({
   }
 }
 
-// ---- Aanwezigheid ----
+// ---- Presence ----
 //
-// "Aanwezigheid" = weten of een speler nog echt verbonden is. We gebruiken
-// Firebase's onDisconnect(): dat is een instructie die de SERVER uitvoert
-// zodra hij merkt dat een toestel de verbinding verliest — door de app te
-// sluiten, een crash, of het netwerk te verliezen. Dit werkt dus ook als er
-// geen tijd meer is om zelf nog JavaScript uit te voeren (bv. geforceerd
-// afsluiten), in tegenstelling tot proberen dit zelf te detecteren in de app.
+// Presence means knowing whether a player is still connected. It uses
+// Firebase's onDisconnect(): an instruction the server runs as soon as a
+// phone drops its connection, through closing the app, a crash or network
+// loss. It works even when the app has no time left to run JavaScript.
 //
-// Belangrijk: zo'n instructie vuurt maar ÉÉN keer. Na een reconnect moet hij
-// opnieuw ingesteld worden — dat gebeurt in use-presence.ts, telkens als
-// ".info/connected" weer true wordt.
+// Such an instruction fires only once, so use-presence.ts attaches it again
+// every time ".info/connected" turns true.
 
-/** Host weg (sluiten, crash, verbinding kwijt) => hele kamer verdwijnt. */
+/** Removes the whole room when the host disconnects. */
 export function attachHostDisconnect(code: string): Promise<void> {
   return onDisconnect(ref(db, roomPath(code))).remove();
 }
 
-/** Gast weg => enkel die speler verdwijnt, de rest speelt door. */
+/** Removes only this player when a guest disconnects. */
 export function attachPlayerDisconnect(code: string, playerId: string): Promise<void> {
   return onDisconnect(ref(db, `${roomPath(code)}/players/${playerId}`)).remove();
 }
 
 /**
- * Zet (of wist) het tijdstip waarop de host naar de achtergrond ging. Andere
- * toestellen gebruiken dit om te bepalen of de genadetijd verstreken is.
+ * Sets or clears the time the host went to the background. Other phones use
+ * it to check whether the grace period has passed.
  */
 export function setHostAway({ code, since }: { code: string; since: number | null }): Promise<void> {
   return update(ref(db, `${roomPath(code)}/gameState`), { hostAwaySince: since });
 }
 
+/** Changes one or more room settings. Host only. */
 export function updateSettings({ code, patch }: { code: string; patch: Partial<RoomSettings> }): Promise<void> {
   return update(ref(db, `${roomPath(code)}/settings`), patch);
 }
 
-// ---- Spel besturing ----
+// ---- Game flow ----
 
+/** Resets scores, shuffles the turn order and starts the first turn. */
 export async function startGame({
   code,
   players,
@@ -264,7 +264,7 @@ export async function startGame({
   await touchRoom(code);
 }
 
-/** Na de aankondiging: de tekenaar krijgt 3 woorden om uit te kiezen. */
+/** Gives the drawer three words to choose from after the announcement. */
 export function beginChoosing({
   code,
   gameState,
@@ -289,7 +289,7 @@ export function beginChoosing({
   });
 }
 
-/** De tekenaar kiest een woord (of de host kiest er bij tijdgebrek zelf een). */
+/** Starts drawing with the chosen word, picked by the drawer or the host. */
 export function startDrawingTurn({
   code,
   word,
@@ -315,7 +315,7 @@ export function startDrawingTurn({
   return update(ref(db), updates);
 }
 
-/** Beurt is voorbij: tekenaar krijgt zijn bonus en iedereen ziet de uitslag. */
+/** Ends the turn, gives the drawer their bonus and shows the standings. */
 export async function endTurn({
   code,
   gameState,
@@ -345,8 +345,8 @@ export async function endTurn({
 }
 
 /**
- * Wie is er hierna aan de beurt? Spelers die weg zijn slaan we over.
- * Geeft null terug als het spel afgelopen is.
+ * Returns who draws next, skipping players who left.
+ * Returns null when the game is over.
  */
 export function computeNextTurn({
   gameState,
@@ -364,7 +364,7 @@ export function computeNextTurn({
   let round = gameState?.currentRound || 1;
   let index = gameState?.turnIndex ?? 0;
 
-  // Maximaal één volledige ronde vooruit zoeken naar een speler die er nog is.
+  // Search at most all remaining turns for a player who is still here.
   for (let step = 0; step < order.length * (maxRounds + 1); step++) {
     index += 1;
     if (index >= order.length) {
@@ -379,6 +379,7 @@ export function computeNextTurn({
   return null;
 }
 
+/** Moves to the next drawer, or to the podium after the last round. */
 export function advanceTurn({
   code,
   gameState,
@@ -413,6 +414,7 @@ export function advanceTurn({
   return update(ref(db), updates);
 }
 
+/** Ends the game and shows the podium. */
 export function finishGame({ code }: { code: string }): Promise<void> {
   return update(ref(db, `${roomPath(code)}/gameState`), {
     status: "podium",
@@ -422,7 +424,7 @@ export function finishGame({ code }: { code: string }): Promise<void> {
   });
 }
 
-/** "Opnieuw spelen": scores op 0, terug naar de wachtruimte. */
+/** Resets scores and returns everyone to the waiting room. */
 export async function playAgain({
   code,
   players,
@@ -454,6 +456,7 @@ export async function playAgain({
 
 // ---- Chat ----
 
+/** Posts a message from the game itself, such as "Time is up". */
 export async function sendSystemMessage({
   code,
   text,
@@ -472,9 +475,8 @@ export async function sendSystemMessage({
 }
 
 /**
- * Een gewoon chatbericht — voor het gebabbel in de wachtruimte, waar er (nog)
- * geen woord is om te raden. In tegenstelling tot sendGuess() wordt dit altijd
- * gewoon getoond, er is niets om "juist" te controleren.
+ * Posts a plain chat message in the waiting room, where there is no word to
+ * guess yet. Unlike sendGuess(), it is always shown.
  */
 export async function sendChatMessage({
   code,
@@ -499,11 +501,11 @@ export async function sendChatMessage({
 }
 
 /**
- * Stuurt een chatbericht. Is het het juiste woord, dan komt het NIET in de
- * chat: de andere spelers zien alleen "X heeft het geraden!".
+ * Posts a guess. A correct guess never appears in the chat. The others only
+ * see "X guessed it".
  *
- * De volgorde van raden wordt met een transactie bepaald, zodat twee spelers
- * die tegelijk raden niet allebei plek 1 (en dus 300 bonuspunten) krijgen.
+ * The guess order uses a transaction, so two players who guess at the same
+ * moment cannot both get first place and its bonus.
  */
 export async function sendGuess({
   code,
@@ -551,7 +553,8 @@ export async function sendGuess({
     ref(db, `${roomPath(code)}/turn/guessed`),
     (current) => {
       const guessed = current || {};
-      if (guessed[playerId]) return; // al geraden: transactie afbreken
+      // Already guessed: returning undefined aborts the transaction.
+      if (guessed[playerId]) return;
       const rank = Object.keys(guessed).length + 1;
       guessed[playerId] = {
         rank,

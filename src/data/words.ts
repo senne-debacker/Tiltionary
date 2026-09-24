@@ -1,6 +1,5 @@
-// src/data/words.ts
-// Woordpakketten. Woorden zijn expres simpel gehouden: je tekent met een
-// rollend balletje, dus details zijn zo goed als onmogelijk.
+// Word packs. The words are simple on purpose: drawing with a rolling ball
+// leaves little room for detail.
 
 export const WORD_PACKS = {
   algemeen: {
@@ -61,9 +60,8 @@ export const DEFAULT_PACK: WordPackKey = "algemeen";
 export const PACK_KEYS = Object.keys(WORD_PACKS) as WordPackKey[];
 
 /**
- * Kies `count` willekeurige woorden uit een pakket.
- * Woorden die al gebruikt zijn in dit spel worden overgeslagen; is het pakket
- * op, dan beginnen we gewoon opnieuw met de volledige lijst.
+ * Picks `count` random words from a pack, skipping words already used in this
+ * game. When the pack runs out, it starts over with the full list.
  */
 export function pickWords(
   packKey: string,

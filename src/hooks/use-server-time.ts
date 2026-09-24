@@ -1,10 +1,7 @@
-// src/hooks/use-server-time.ts
-// Elke telefoon loopt een beetje voor of achter. Firebase geeft ons het
-// verschil met de servertijd, zodat alle spelers dezelfde klok gebruiken en
-// iedereen exact tegelijk 0 op de timer ziet.
+// A shared clock. Every phone runs slightly fast or slow, and Firebase reports
+// the offset to its server time, so all timers hit zero at the same moment.
 //
-// De listener wordt één keer opgezet (bij het eerste gebruik) en gedeeld door
-// de hele app — niet per scherm, anders open je hem meerdere keren.
+// The offset listener opens once, on first use, and the whole app shares it.
 
 import { useEffect, useState } from "react";
 import { ref, onValue } from "firebase/database";
@@ -21,13 +18,13 @@ function ensureListening() {
   });
 }
 
-/** De huidige tijd volgens de server, in ms. */
+/** Returns the current server time in milliseconds. */
 export function serverNow(): number {
   ensureListening();
   return Date.now() + offset;
 }
 
-/** Aftellen naar een absoluut tijdstip. Geeft de resterende milliseconden. */
+/** Counts down to an absolute time and returns the milliseconds left. */
 export function useCountdown(
   endsAt: number | undefined | null,
   intervalMs = 200,

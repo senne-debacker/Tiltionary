@@ -40,6 +40,7 @@ const EMPTY = {
   loaded: false,
 };
 
+/** Store with the current room. Read it with a selector. */
 export const useRoomStore = create<RoomState>()((set) => ({
   ...EMPTY,
   setGameState: (gameState) => set({ gameState, loaded: true }),

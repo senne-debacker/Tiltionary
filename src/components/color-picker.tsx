@@ -1,6 +1,5 @@
-// src/components/color-picker.tsx
-// Rij kleurbolletjes waaruit de tekenaar de inktkleur kiest. Werkt meteen,
-// ook midden in een lijn (zie de kleurwissel-logica in use-tilt-drawing).
+// Row of color swatches for the ink. A change applies right away, even in
+// the middle of a line (see setColor in use-tilt-drawing).
 
 import React from "react";
 import { StyleSheet, View, TouchableOpacity } from "react-native";

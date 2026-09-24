@@ -1,5 +1,4 @@
-// src/app/sandbox.tsx
-// Vrij tekenen, los van een kamer.
+// Route "/sandbox": free drawing outside of a room.
 
 import { router } from "expo-router";
 

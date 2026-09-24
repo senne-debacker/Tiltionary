@@ -1,5 +1,4 @@
-// src/screens/LobbyScreen.tsx
-// Startscherm: naam kiezen, kamer maken of joinen.
+// Home screen: pick a name, create or join a room, and turn sound on or off.
 
 import React, { useState } from "react";
 import {
@@ -33,8 +32,7 @@ const DRAWING_STEPS = [
   "Gebruik de knoppen om ongedaan te maken of alles te wissen",
 ];
 
-// Handgetekend lijntje onder de titel — dezelfde balletjes-en-lijnen-taal als
-// het spel zelf, i.p.v. een generieke rechte streep.
+/** Hand-drawn line under the title, in the same ball-and-line style as the game. */
 function Squiggle({ stroke, dot }: { stroke: string; dot: string }) {
   return (
     <Svg width={220} height={26} viewBox="0 0 220 26" style={styles.squiggle}>
@@ -76,8 +74,8 @@ export default function LobbyScreen({ onSandbox }: { onSandbox: () => void }) {
 
     setBusy(true);
     try {
-      // Draait op de achtergrond: mag het maken van de kamer niet vertragen,
-      // en als het mislukt is dat geen probleem — de volgende poging ruimt op.
+      // Runs in the background so it never slows down creating a room. A
+      // failure is fine, because the next new room cleans up again.
       cleanupStaleRooms().catch(() => {});
 
       const { code, playerId } = await createRoom({ name });

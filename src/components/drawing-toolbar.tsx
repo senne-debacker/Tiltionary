@@ -1,6 +1,5 @@
-// src/components/drawing-toolbar.tsx
-// Wis-alles en ongedaan-maken knoppen. Vervangt het oude schud-om-te-wissen
-// gebaar: dat triggerde te makkelijk per ongeluk.
+// Undo and clear buttons below the canvas. They replace a shake-to-clear
+// gesture that fired too easily by accident.
 
 import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
@@ -11,7 +10,7 @@ import type { ReactNode } from "react";
 
 type ToolbarButtonProps = {
   label: string;
-  /** SF Symbol (iOS) met een Material-tegenhanger voor Android. */
+  /** SF Symbol for iOS with its Material Symbol for Android. */
   icon: { ios: SFSymbol; android: AndroidSymbol };
   onPress: () => void;
   disabled?: boolean;

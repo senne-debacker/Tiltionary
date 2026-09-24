@@ -35,6 +35,7 @@ function save(preferences: Preferences) {
   }
 }
 
+/** Store with this device's preferences. Changes are saved right away. */
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ...load(),
   toggleSound: () => {

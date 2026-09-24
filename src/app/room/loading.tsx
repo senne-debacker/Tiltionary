@@ -1,5 +1,4 @@
-// src/app/room/loading.tsx
-// Korte tussenstap terwijl de eerste snapshot van de kamer binnenkomt.
+// Shown briefly while the first snapshot of the room arrives.
 
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 

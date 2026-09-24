@@ -1,5 +1,4 @@
-// src/app/room/result.tsx
-// Fase "turnResult": tussenstand na een beurt.
+// Phase "turnResult": standings after a turn.
 
 import TurnResultScreen from "@/screens/TurnResultScreen";
 

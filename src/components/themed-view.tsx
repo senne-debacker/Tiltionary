@@ -1,5 +1,4 @@
-// src/components/themed-view.tsx
-// View met een achtergrondkleur uit het thema.
+// View with a background color from the theme.
 
 import { View, type ViewProps } from "react-native";
 
@@ -7,7 +6,7 @@ import type { ThemeColor } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 export type ThemedViewProps = ViewProps & {
-  /** Welke themakleur als achtergrond; standaard de schermachtergrond. */
+  /** Theme color for the background. Defaults to the screen background. */
   type?: ThemeColor;
 };
 

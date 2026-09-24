@@ -1,5 +1,5 @@
-// src/components/player-row.tsx
-// Eén rij in een spelerslijst: naam, eventueel medaille/score/kick-knop.
+// One row in a player list: the name, plus an optional medal, score and
+// kick button.
 
 import React from "react";
 import { StyleSheet, View, TouchableOpacity } from "react-native";
@@ -12,10 +12,10 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 type PlayerRowProps = {
   player: Player;
-  /** 0-based; toont een medaille bij de top 3. */
+  /** Zero-based position. The top three get a medal. */
   rank?: number;
   showScore?: boolean;
-  /** Punten die deze speler net verdiend heeft. */
+  /** Points this player just earned. */
   gained?: number;
   isYou?: boolean;
   isDrawer?: boolean;

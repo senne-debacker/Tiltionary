@@ -1,5 +1,4 @@
-// src/logic/drawing.ts
-// Het versturen en uitlezen van de tekening.
+// Sends the drawing to Firebase and reads it back.
 
 import { ref, update, remove } from "firebase/database";
 import { db } from "../../firebaseConfig";
@@ -14,9 +13,8 @@ type SyncPointsArgs = {
 };
 
 /**
- * Stuurt ALLEEN de nieuwe punten van een lijn naar Firebase, elk op hun eigen
- * index. Vroeger werd steeds de hele puntenlijst opnieuw verstuurd, waardoor
- * lange lijnen het balletje deden haperen: het bericht werd elke sync groter.
+ * Sends only the new points of a line, each at its own index. Sending the
+ * whole line every time made each update bigger and made the ball stutter.
  */
 export function syncPoints({
   code,
@@ -36,12 +34,13 @@ export function syncPoints({
   return update(ref(db), updates);
 }
 
+/** Removes every line of the drawing. */
 export function clearDrawing({ code }: { code: string }): Promise<void> {
   if (!code) return Promise.resolve();
   return remove(ref(db, `rooms/${code}/drawing/paths`));
 }
 
-/** Verwijdert precies één lijn (voor de "Ongedaan maken"-knop). */
+/** Removes exactly one line, for the undo button. */
 export function undoLastPath({
   code,
   pathIndex,
@@ -54,8 +53,8 @@ export function undoLastPath({
 }
 
 /**
- * De tekenaar deelt hoe groot zijn canvas is. De raders gebruiken dat als
- * viewBox, zodat de tekening ook klopt op een telefoon met een ander scherm.
+ * Shares the size of the drawer's canvas. Guessers use it as the viewBox, so
+ * the drawing fits a phone with a different screen size.
  */
 export function publishCanvasSize({
   code,
@@ -71,8 +70,8 @@ export function publishCanvasSize({
 }
 
 /**
- * Firebase geeft lijsten soms terug als object (met gaten) en soms als array.
- * Dit maakt er altijd een nette array van.
+ * Firebase returns lists as an array or as an object with gaps. This always
+ * returns a clean array.
  */
 export function normalizePaths(
   raw: DrawPath[] | Record<string, DrawPath> | null | undefined,

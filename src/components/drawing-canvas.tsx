@@ -1,9 +1,6 @@
-// src/components/drawing-canvas.tsx
-// Het tekenvlak: rendert de opgeslagen lijnen plus (optioneel) het balletje.
-//
-// Gebruikt BEWUST niet het thema (zie `canvas` in constants/theme): een
-// tekening wordt gedeeld tussen spelers die elk een andere systeeminstelling
-// kunnen hebben, en moet er bij iedereen hetzelfde uitzien.
+// The canvas: renders the stored lines and, optionally, the ball.
+// It uses the fixed canvas colors instead of the theme, so a shared drawing
+// looks the same for every player.
 
 import React, { forwardRef } from "react";
 import { StyleSheet, View, Text } from "react-native";
@@ -35,8 +32,7 @@ type DrawingCanvasProps = {
   children?: ReactNode;
 };
 
-// forwardRef zodat de sandbox de <Svg> kan aanspreken (svgRef.toDataURL(...))
-// om de tekening als PNG te exporteren voor opslaan/delen.
+// The ref points at the Svg, so the sandbox can export it with toDataURL().
 const DrawingCanvas = forwardRef<Svg, DrawingCanvasProps>(function DrawingCanvas(
   {
     paths = [],

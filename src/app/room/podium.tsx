@@ -1,5 +1,4 @@
-// src/app/room/podium.tsx
-// Fase "podium": eindstand.
+// Phase "podium": the final standings.
 
 import PodiumScreen from "@/screens/PodiumScreen";
 

@@ -1,19 +1,19 @@
-// src/logic/scoring.ts
-// Alle puntenregels op één plek, zodat de rest van de app niet hoeft te rekenen.
+// All scoring rules in one place, so the rest of the app never calculates
+// points itself.
 
 import type { PlayerMap, RankedPlayer } from "@/types/game";
 
-// Bonus voor wie als 1e, 2e of 3e raadt. Daarna geen bonus meer.
+/** Bonus for the first, second and third correct guess. */
 export const PLACEMENT_BONUS = [300, 200, 100];
 
-// De tekenaar krijgt dit per persoon die zijn tekening raadt.
+/** Points the drawer earns per player who guesses the word. */
 export const DRAWER_POINTS_PER_GUESS = 100;
 
 export const MAX_TIME_POINTS = 1000;
 
 /**
- * Punten op basis van de resterende tijd, omgerekend naar een schaal van 1000.
- * Voorbeeld: 15 van de 60 seconden over => 15/60 = 25% => 250 punten.
+ * Returns points for the time left, on a scale up to 1000.
+ * For example, 15 of 60 seconds left is 25%, which gives 250 points.
  */
 export function calcTimePoints(msLeft: number, totalMs: number): number {
   if (!totalMs || totalMs <= 0) return 0;
@@ -21,17 +21,17 @@ export function calcTimePoints(msLeft: number, totalMs: number): number {
   return Math.round(ratio * MAX_TIME_POINTS);
 }
 
-/** Bonus voor de plaats waarop je geraden hebt (rank begint bij 1). */
+/** Returns the bonus for a guess rank, where rank 1 is the first guess. */
 export function placementBonus(rank: number): number {
   return PLACEMENT_BONUS[rank - 1] || 0;
 }
 
-/** Wat de tekenaar verdient als `guessCount` mensen het woord raden. */
+/** Returns what the drawer earns when `guessCount` players guess the word. */
 export function drawerPoints(guessCount: number): number {
   return guessCount * DRAWER_POINTS_PER_GUESS;
 }
 
-/** Zet de spelers-map om naar een gesorteerde lijst (hoogste score eerst). */
+/** Turns the player map into a list sorted by score, highest first. */
 export function toRanking(players: PlayerMap = {}): RankedPlayer[] {
   return Object.entries(players)
     .map(([id, p]) => ({

@@ -1,5 +1,4 @@
-// src/app/room/announcement.tsx
-// Fase "announcement": "Speler X tekent!".
+// Phase "announcement": shows who draws next.
 
 import AnnouncementScreen from "@/screens/AnnouncementScreen";
 

@@ -1,5 +1,4 @@
-// src/app/index.tsx
-// Startscherm (route "/"): naam kiezen, kamer maken of joinen.
+// Route "/": the home screen, where you pick a name and create or join a room.
 
 import { router } from "expo-router";
 

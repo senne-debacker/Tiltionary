@@ -1,6 +1,5 @@
-// src/components/themed-text.tsx
-// Tekst die zijn kleur uit het thema haalt, met een vaste typografieschaal.
-// Zo staan lettergroottes op één plek in plaats van in elk scherm apart.
+// Text that takes its color from the theme and its size from a fixed type
+// scale, so font sizes live in one place.
 
 import { StyleSheet, Text, type TextProps } from "react-native";
 

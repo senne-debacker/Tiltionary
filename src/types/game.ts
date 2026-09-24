@@ -1,9 +1,8 @@
-// src/types/game.ts
-// De vorm van alles wat in Firebase staat. Firebase geeft `any` terug bij het
-// uitlezen, dus casten we daar één keer naar deze types — zo blijft de rest van
-// de app getypeerd in plaats van overal optional chaining op onbekende data.
+// The shape of everything stored in Firebase. Firebase returns untyped data,
+// so it is cast to these types once, where it is read. The rest of the app
+// then works with real types.
 
-/** Fases die een kamer doorloopt. Bepaalt ook welk scherm je ziet. */
+/** Phases a room goes through. Each phase has its own screen. */
 export type GameStatus =
   | "lobby"
   | "announcement"
@@ -26,7 +25,7 @@ export type Player = {
   joinedAt?: number;
 };
 
-/** Spelers staan in Firebase als object, met hun id als sleutel. */
+/** Players are stored as an object keyed by player id. */
 export type PlayerMap = Record<string, Player>;
 
 export type RoomSettings = {
@@ -47,11 +46,11 @@ export type GameState = {
   wordChoices?: string[];
   usedWords?: Record<string, boolean>;
   lastDrawerBonus?: number;
-  /** Tijdstip waarop de host naar de achtergrond ging; null als hij er is. */
+  /** When the host went to the background, or null while the host is here. */
   hostAwaySince?: number | null;
 };
 
-/** Wat er van een speler wordt bijgehouden zodra die het woord raadt. */
+/** What is stored for a player once they guess the word. */
 export type GuessEntry = {
   rank: number;
   name: string;
@@ -71,14 +70,14 @@ export type ChatMessage = {
   at: number;
   name?: string;
   playerId?: string;
-  /** Alleen voor systeemberichten: kleurt het bericht. */
+  /** System messages only: sets the color of the message. */
   tone?: "info" | "success";
 };
 
-/** Chatberichten staan in Firebase als object, met een push-id als sleutel. */
+/** Chat messages are stored as an object keyed by push id. */
 export type ChatMap = Record<string, ChatMessage>;
 
-/** Een chatbericht zoals de UI het nodig heeft: met zijn id erbij. */
+/** A chat message with its id, as the UI needs it. */
 export type ChatMessageWithId = ChatMessage & { id: string };
 
 export type RoomDrawing = {
@@ -86,5 +85,5 @@ export type RoomDrawing = {
   canvas?: { width: number; height: number };
 };
 
-/** Een speler in een ranglijst: samengevoegd met zijn id en veilige defaults. */
+/** A player in a ranking, with its id and safe defaults filled in. */
 export type RankedPlayer = Player & { id: string };

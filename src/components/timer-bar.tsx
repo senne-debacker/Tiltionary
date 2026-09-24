@@ -1,6 +1,5 @@
-// src/components/timer-bar.tsx
-// Voortgangsbalk voor de beurttimer: groen -> amber -> rood naarmate de tijd
-// opraakt.
+// Progress bar for the turn timer. It turns from green to amber to red as
+// time runs out.
 
 import React from "react";
 import { StyleSheet, View, Text } from "react-native";

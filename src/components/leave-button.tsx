@@ -1,7 +1,5 @@
-// src/components/leave-button.tsx
-// Consistente "verlaat/beëindig spel"-knop voor op elk scherm tijdens een
-// lopend potje. Het bevestigingsdialoogje zit al in de meegegeven onPress
-// (zie handleLeave) — dit component is puur de knop zelf.
+// The "leave" or "end game" button shown on every screen during a game.
+// It is only the button. The confirmation comes from useLeaveRoom.
 
 import React from "react";
 import { StyleSheet, TouchableOpacity, Text } from "react-native";

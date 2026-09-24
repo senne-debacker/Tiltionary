@@ -1,5 +1,4 @@
-// src/app/room/play.tsx
-// Fases "choosing" en "playing": woord kiezen en daarna tekenen/raden.
+// Phases "choosing" and "playing": pick a word, then draw or guess.
 
 import GameScreen from "@/screens/GameScreen";
 
