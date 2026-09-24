@@ -25,7 +25,7 @@ import { useCountdown, serverNow } from "@/hooks/use-server-time";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore, useChatMessages } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
-import { playDing } from "@/hooks/use-ding-sound";
+import { playDing } from "@/logic/feedback";
 import {
   syncPoints,
   clearDrawing,

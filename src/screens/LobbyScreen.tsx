@@ -15,10 +15,13 @@ import {
   ScrollView,
 } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
+import { SymbolView } from "expo-symbols";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createRoom, joinRoom, cleanupStaleRooms } from "@/logic/room";
 import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSessionStore } from "@/hooks/use-session-store";
+import { useSettingsStore } from "@/hooks/use-settings-store";
 import { ThemedText } from "@/components/themed-text";
 import { Collapsible } from "@/components/collapsible";
 
@@ -53,7 +56,10 @@ export default function LobbyScreen({ onSandbox }: { onSandbox: () => void }) {
   const [joinCode, setJoinCode] = useState("");
   const [nameFocused, setNameFocused] = useState(false);
   const [busy, setBusy] = useState(false);
+  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
+  const toggleSound = useSettingsStore((state) => state.toggleSound);
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const validName = () => {
     const name = nameInput.trim();
@@ -205,12 +211,42 @@ export default function LobbyScreen({ onSandbox }: { onSandbox: () => void }) {
           </Collapsible>
         </View>
       </ScrollView>
+
+      <TouchableOpacity
+        style={[
+          styles.soundButton,
+          { top: insets.top + spacing.sm, backgroundColor: theme.surfaceLighter },
+        ]}
+        onPress={toggleSound}
+        accessibilityRole="switch"
+        accessibilityLabel="Geluid"
+        accessibilityState={{ checked: soundEnabled }}
+      >
+        <SymbolView
+          name={
+            soundEnabled
+              ? { ios: "speaker.wave.2.fill", android: "volume_up", web: "volume_up" }
+              : { ios: "speaker.slash.fill", android: "volume_off", web: "volume_off" }
+          }
+          size={20}
+          tintColor={soundEnabled ? theme.text : theme.textDim}
+        />
+      </TouchableOpacity>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  soundButton: {
+    position: "absolute",
+    right: spacing.xl,
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   content: {
     flexGrow: 1,
     justifyContent: "center",
