@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import Svg, { Path, Circle } from "react-native-svg";
 import { createRoom, joinRoom, cleanupStaleRooms } from "@/logic/room";
@@ -19,6 +20,15 @@ import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { ThemedText } from "@/components/themed-text";
+import { Collapsible } from "@/components/collapsible";
+
+const DRAWING_STEPS = [
+  "Tik om het balletje te laten vallen",
+  "Kantel om te rollen en te tekenen",
+  "Tik om je pen op te tillen",
+  "Kies een kleur boven het tekenvlak",
+  "Gebruik de knoppen om ongedaan te maken of alles te wissen",
+];
 
 // Handgetekend lijntje onder de titel — dezelfde balletjes-en-lijnen-taal als
 // het spel zelf, i.p.v. een generieke rechte streep.
@@ -99,105 +109,110 @@ export default function LobbyScreen({ onSandbox }: { onSandbox: () => void }) {
     }
   };
 
-  const showHelp = () =>
-    Alert.alert(
-      "Hoe werkt het tekenen?",
-      "Hou je telefoon plat.\n\n• Tik om het balletje te laten vallen\n• Kantel om te rollen en te tekenen\n• Tik om je pen op te tillen\n• Kies een kleur onderaan\n• Gebruik de knoppen om ongedaan te maken of alles te wissen",
-    );
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View style={styles.hero}>
-        <ThemedText style={styles.title}>
-          Tilt<ThemedText style={[styles.title, { color: theme.primary }]}>ionary</ThemedText>
-        </ThemedText>
-        <Squiggle stroke={theme.accent} dot={theme.primary} />
-        <ThemedText themeColor="textMuted" style={styles.subtitle}>
-          Teken met je telefoon, raad met je hoofd
-        </ThemedText>
-      </View>
-
-      <TextInput
-        style={[
-          styles.nameInput,
-          { backgroundColor: theme.surfaceLighter, color: theme.text, borderColor: theme.border },
-          nameFocused && { borderColor: theme.primary },
-        ]}
-        placeholder="Kies je nickname"
-        placeholderTextColor={theme.textDim}
-        maxLength={12}
-        value={nameInput}
-        onChangeText={setNameInput}
-        onFocus={() => setNameFocused(true)}
-        onBlur={() => setNameFocused(false)}
-        autoCapitalize="words"
-        autoCorrect={false}
-      />
-
-      <TouchableOpacity
-        style={[styles.bigButton, { backgroundColor: theme.primary }, busy && styles.busy]}
-        onPress={handleCreate}
-        disabled={busy}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
-        {busy ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.buttonText}>Maak een kamer</Text>
-        )}
-      </TouchableOpacity>
+        <View style={styles.hero}>
+          <ThemedText style={styles.title}>
+            Tilt<ThemedText style={[styles.title, { color: theme.primary }]}>ionary</ThemedText>
+          </ThemedText>
+          <Squiggle stroke={theme.accent} dot={theme.primary} />
+          <ThemedText themeColor="textMuted" style={styles.subtitle}>
+            Teken met je telefoon, raad met je hoofd
+          </ThemedText>
+        </View>
 
-      <View style={styles.dividerRow}>
-        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-        <ThemedText themeColor="textDim" style={styles.dividerLabel}>of</ThemedText>
-        <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-      </View>
-
-      <View style={styles.joinRow}>
         <TextInput
           style={[
-            styles.codeInput,
-            { backgroundColor: theme.surfaceLighter, color: theme.text },
+            styles.nameInput,
+            { backgroundColor: theme.surfaceLighter, color: theme.text, borderColor: theme.border },
+            nameFocused && { borderColor: theme.primary },
           ]}
-          placeholder="Code"
+          placeholder="Kies je nickname"
           placeholderTextColor={theme.textDim}
-          keyboardType="number-pad"
-          maxLength={4}
-          value={joinCode}
-          onChangeText={setJoinCode}
+          maxLength={12}
+          value={nameInput}
+          onChangeText={setNameInput}
+          onFocus={() => setNameFocused(true)}
+          onBlur={() => setNameFocused(false)}
+          autoCapitalize="words"
+          autoCorrect={false}
         />
+
         <TouchableOpacity
-          style={[styles.joinButton, { backgroundColor: theme.success }, busy && styles.busy]}
-          onPress={handleJoin}
+          style={[styles.bigButton, { backgroundColor: theme.primary }, busy && styles.busy]}
+          onPress={handleCreate}
           disabled={busy}
         >
-          <Text style={styles.buttonText}>Join</Text>
+          {busy ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.buttonText}>Maak een kamer</Text>
+          )}
         </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity
-        style={[styles.sandboxButton, { borderColor: theme.border }]}
-        onPress={onSandbox}
-      >
-        <ThemedText themeColor="textMuted" style={styles.sandboxText}>
-          🎨 Sandbox (oefenen)
-        </ThemedText>
-      </TouchableOpacity>
+        <View style={styles.dividerRow}>
+          <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+          <ThemedText themeColor="textDim" style={styles.dividerLabel}>of</ThemedText>
+          <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+        </View>
 
-      <TouchableOpacity style={styles.infoButton} onPress={showHelp}>
-        <ThemedText themeColor="primary" style={styles.infoText}>
-          ℹ️ Hoe werkt het tekenen?
-        </ThemedText>
-      </TouchableOpacity>
+        <View style={styles.joinRow}>
+          <TextInput
+            style={[
+              styles.codeInput,
+              { backgroundColor: theme.surfaceLighter, color: theme.text },
+            ]}
+            placeholder="Code"
+            placeholderTextColor={theme.textDim}
+            keyboardType="number-pad"
+            maxLength={4}
+            value={joinCode}
+            onChangeText={setJoinCode}
+          />
+          <TouchableOpacity
+            style={[styles.joinButton, { backgroundColor: theme.success }, busy && styles.busy]}
+            onPress={handleJoin}
+            disabled={busy}
+          >
+            <Text style={styles.buttonText}>Join</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.sandboxButton, { borderColor: theme.border }]}
+          onPress={onSandbox}
+        >
+          <ThemedText themeColor="textMuted" style={styles.sandboxText}>
+            🎨 Sandbox (oefenen)
+          </ThemedText>
+        </TouchableOpacity>
+
+        <View style={styles.help}>
+          <Collapsible title="Hoe werkt het tekenen?">
+            <ThemedText style={styles.helpIntro}>Hou je telefoon plat.</ThemedText>
+            {DRAWING_STEPS.map((step) => (
+              <ThemedText key={step} themeColor="textMuted" style={styles.helpStep}>
+                • {step}
+              </ThemedText>
+            ))}
+          </Collapsible>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xl,
@@ -258,6 +273,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   sandboxText: { fontSize: 16, fontWeight: "700" },
-  infoButton: { marginTop: spacing.xl, padding: spacing.sm },
-  infoText: { fontSize: 15 },
+  help: { width: "100%", marginTop: spacing.lg },
+  helpIntro: { fontSize: 15, fontWeight: "600", marginBottom: spacing.xs },
+  helpStep: { fontSize: 14, lineHeight: 20 },
 });
