@@ -1,9 +1,7 @@
-// src/components/chat-panel.tsx
-// Houdt de tekst van het invoerveld in eigen state, zodat typen het spelscherm
-// niet laat hertekenen. Onnodig hertekenen tijdens het tekenen (~60x per
-// seconde) wordt door de React Compiler afgevangen.
+// Chat list with an input row, used in the waiting room and during a turn.
+// The input text lives in local state so typing never re-renders the screen.
 
-import React, { useRef, useState } from "react";
+import { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -11,7 +9,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
-import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { FlashList } from "@shopify/flash-list";
 import { SymbolView } from "expo-symbols";
 import { radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -61,7 +59,6 @@ function ChatPanel({
   style,
 }: ChatPanelProps) {
   const [text, setText] = useState("");
-  const listRef = useRef<FlashListRef<ChatMessageWithId>>(null);
   const theme = useTheme();
 
   const send = () => {
@@ -73,23 +70,27 @@ function ChatPanel({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.surface }, style]}>
-      <FlashList
-        ref={listRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <Message item={item} />}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        onContentSizeChange={() =>
-          listRef.current?.scrollToEnd({ animated: true })
-        }
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <Text style={[styles.empty, { color: theme.textDim }]}>
-            Typ hier je gok...
-          </Text>
-        }
-      />
+      {/* FlashList fills its parent with flex: 1, so the parent needs a
+          fixed height. Without it the list collapses to 0px and hides
+          every message. */}
+      <View style={styles.list}>
+        <FlashList
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <Message item={item} />}
+          contentContainerStyle={styles.listContent}
+          maintainVisibleContentPosition={{
+            autoscrollToBottomThreshold: 0.2,
+            startRenderingFromBottom: true,
+          }}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <Text style={[styles.empty, { color: theme.textDim }]}>
+              Nog geen berichten
+            </Text>
+          }
+        />
+      </View>
 
       <View style={styles.inputRow}>
         <TextInput
@@ -132,7 +133,7 @@ function ChatPanel({
 
 const styles = StyleSheet.create({
   container: {},
-  list: { maxHeight: 150 },
+  list: { height: 140 },
   listContent: { padding: spacing.md, paddingBottom: spacing.xs },
   empty: { fontStyle: "italic", fontSize: 13 },
   message: { fontSize: 14, marginBottom: spacing.xs },
