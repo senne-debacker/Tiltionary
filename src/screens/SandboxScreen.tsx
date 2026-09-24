@@ -1,6 +1,5 @@
-// src/screens/SandboxScreen.tsx
-// Vrij tekenen om de besturing onder de knie te krijgen. Geen Firebase.
-// Kan de tekening ook opslaan in de fotobibliotheek of delen.
+// Free drawing to practise the controls, without Firebase. The drawing can
+// be saved or shared as a photo or as a GIF of how it was drawn.
 
 import { useRef, useState } from "react";
 import {
@@ -16,18 +15,28 @@ import DrawingCanvas from "@/components/drawing-canvas";
 import ColorPicker from "@/components/color-picker";
 import DrawingToolbar from "@/components/drawing-toolbar";
 import useTiltDrawing from "@/hooks/use-tilt-drawing";
-import { saveDrawingToLibrary, shareDrawing } from "@/logic/export-drawing";
+import {
+  saveDrawing,
+  shareDrawing,
+  type ExportFormat,
+} from "@/logic/export-drawing";
 import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import type { LayoutChangeEvent } from "react-native";
 
+const FORMATS: { value: ExportFormat; label: string }[] = [
+  { value: "png", label: "Foto" },
+  { value: "gif", label: "GIF" },
+];
+
 export default function SandboxScreen({ onExit }: { onExit: () => void }) {
   useKeepAwake();
 
   const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>("png");
   const svgRef = useRef(null);
   const canvasSize = useRef<{ width: number; height: number } | null>(null);
   const theme = useTheme();
@@ -55,12 +64,13 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
   };
 
   const hasDrawing = paths.length > 0;
+  const exportSource = () => ({ svgRef, paths, canvasSize: canvasSize.current });
 
   const handleSave = async () => {
     if (exporting) return;
     setExporting(true);
     try {
-      const result = await saveDrawingToLibrary(svgRef, canvasSize.current);
+      const result = await saveDrawing(format, exportSource());
       if (result.ok) {
         Alert.alert("Opgeslagen!", "Je tekening staat in je fotobibliotheek.");
       } else if (result.reason === "permission") {
@@ -80,7 +90,7 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
     if (exporting) return;
     setExporting(true);
     try {
-      const result = await shareDrawing(svgRef, canvasSize.current);
+      const result = await shareDrawing(format, exportSource());
       if (!result.ok && result.reason === "unavailable") {
         Alert.alert("Niet beschikbaar", "Delen wordt niet ondersteund op dit toestel.");
       }
@@ -161,8 +171,48 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
               Wat wil je ermee doen?
             </ThemedText>
 
+            <View style={[styles.formatRow, { backgroundColor: theme.surfaceLighter }]}>
+              {FORMATS.map((option) => {
+                const selected = option.value === format;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.formatOption,
+                      selected && { backgroundColor: theme.primary },
+                    ]}
+                    onPress={() => setFormat(option.value)}
+                    disabled={exporting}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text
+                      style={[
+                        styles.formatText,
+                        { color: selected ? "#FFFFFF" : theme.textMuted },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {format === "gif" && (
+              <ThemedText themeColor="textDim" style={styles.formatHint}>
+                Een filmpje van hoe je tekening ontstond.
+              </ThemedText>
+            )}
+
             {exporting ? (
-              <ActivityIndicator color={theme.primary} style={styles.spinner} />
+              <View style={styles.spinner}>
+                <ActivityIndicator color={theme.primary} />
+                {format === "gif" && (
+                  <ThemedText themeColor="textMuted" style={styles.spinnerText}>
+                    GIF maken...
+                  </ThemedText>
+                )}
+              </View>
             ) : (
               <>
                 <TouchableOpacity
@@ -257,7 +307,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sheetButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
-  spinner: { marginVertical: spacing.xl },
+  spinner: { marginVertical: spacing.xl, alignItems: "center", gap: spacing.sm },
+  spinnerText: { fontSize: 14 },
+  formatRow: {
+    flexDirection: "row",
+    borderRadius: radius.md,
+    padding: spacing.xs,
+    marginBottom: spacing.sm,
+    alignSelf: "stretch",
+  },
+  formatOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    alignItems: "center",
+  },
+  formatText: { fontWeight: "700" },
+  formatHint: { fontSize: 13, marginBottom: spacing.sm, textAlign: "center" },
   sheetClose: { marginTop: spacing.xs + 2, padding: spacing.sm + 2 },
   sheetCloseText: { fontSize: 14 },
 });

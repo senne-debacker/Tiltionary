@@ -1,98 +1,102 @@
-// src/logic/export-drawing.ts
-// Zet de getekende SVG om in een PNG-bestand, en slaat 'm op / deelt 'm.
+// Saves a drawing to the photo library or opens the share sheet, as a still
+// PNG or as an animated GIF of how it was drawn.
 //
-// react-native-svg's <Svg> heeft zelf een toDataURL(callback, options) methode
-// (via ref) die een base64 PNG teruggeeft — dat bespaart ons een extra
-// screenshot-library. Die base64 data schrijven we met expo-file-system naar
-// een tijdelijk bestand, en dat bestand geven we door aan expo-media-library
-// (opslaan in de fotobibliotheek) of expo-sharing (delen).
+// The PNG comes from react-native-svg's own toDataURL(), which saves a
+// screenshot library. The GIF is built in drawing-gif.ts. Both are written to
+// a cache file first, because the library and share sheet expect a file.
 
 import { File, Paths, EncodingType } from "expo-file-system";
 import { Asset, requestPermissionsAsync } from "expo-media-library";
 import * as Sharing from "expo-sharing";
+import { encodeDrawingGif } from "@/logic/drawing-gif";
 import type { RefObject } from "react";
+import type { DrawPath } from "@/types/game";
 
-/** Grootte van het canvas; bepaalt de resolutie van de PNG. */
+export type ExportFormat = "png" | "gif";
+
+/** Size of the canvas in points; sets the resolution of the export. */
 export type CanvasSize = { width: number; height: number } | null;
 
+/** What the sandbox needs to export the current drawing. */
+export type ExportSource = {
+  svgRef: SvgRef;
+  paths: DrawPath[];
+  canvasSize: CanvasSize;
+};
+
+/** Result of saving or sharing, so the screen can show the right message. */
+export type ExportResult = { ok: boolean; reason?: "permission" | "unavailable" };
+
 /**
- * Minimale vorm van react-native-svg's <Svg>: alleen wat wij nodig hebben.
- * De library typeert toDataURL niet in zijn publieke ref-type.
+ * The part of react-native-svg's Svg that is needed here. The library does
+ * not include toDataURL in its public ref type.
  */
 type SvgCapture = { toDataURL?: (cb: (base64: string) => void, options?: object) => void };
 type SvgRef = RefObject<SvgCapture | null>;
 
-/** Wat opslaan/delen teruggeeft aan het scherm. */
-export type ExportResult = { ok: boolean; reason?: "permission" | "unavailable" };
+const MIME_TYPES = { png: "image/png", gif: "image/gif" };
+const UTIS = { png: "public.png", gif: "com.compuserve.gif" };
 
-/** Vraagt de <Svg> via zijn ref om zichzelf als base64 PNG te renderen. */
-function captureSvgAsBase64(
-  svgRef: SvgRef,
-  { width, height }: { width?: number; height?: number } = {},
-): Promise<string> {
+/** Asks the Svg to render itself as a base64 PNG. */
+function captureSvgAsBase64(svgRef: SvgRef, canvasSize: CanvasSize): Promise<string> {
   return new Promise<string>((resolve, reject) => {
-    const node = svgRef?.current;
+    const node = svgRef.current;
     if (!node?.toDataURL) {
-      reject(new Error("Canvas is niet klaar om te exporteren."));
+      reject(new Error("The canvas is not ready to export."));
       return;
     }
     try {
-      const options = width && height ? { width, height } : undefined;
-      node.toDataURL((base64: string) => {
-        if (!base64) reject(new Error("Leeg resultaat bij het renderen van de tekening."));
-        else resolve(base64);
-      }, options);
+      node.toDataURL((base64) => {
+        if (base64) resolve(base64);
+        else reject(new Error("Rendering the drawing returned nothing."));
+      }, canvasSize ?? undefined);
     } catch (error) {
       reject(error);
     }
   });
 }
 
-/** Schrijft base64 PNG-data naar een nieuw bestand in de cache-map. */
-function writePngFile(base64: string) {
-  const file = new File(Paths.cache, `tiltionary-${Date.now()}.png`);
+/** Renders the drawing in the chosen format and writes it to the cache. */
+async function writeExportFile(format: ExportFormat, source: ExportSource): Promise<File> {
+  const file = new File(Paths.cache, `tiltionary-${Date.now()}.${format}`);
   file.create({ overwrite: true });
-  file.write(base64, { encoding: EncodingType.Base64 });
+
+  if (format === "png") {
+    const base64 = await captureSvgAsBase64(source.svgRef, source.canvasSize);
+    file.write(base64, { encoding: EncodingType.Base64 });
+  } else {
+    if (!source.canvasSize) throw new Error("The canvas size is unknown.");
+    file.write(await encodeDrawingGif(source.paths, source.canvasSize));
+  }
+
   return file;
 }
 
-/**
- * Rendert het canvas naar PNG en slaat het op in de fotobibliotheek.
- * Vraagt (indien nodig) alleen "toevoegen"-toestemming, geen leestoegang.
- */
-export async function saveDrawingToLibrary(
-  svgRef: SvgRef,
-  canvasSize: CanvasSize,
+/** Saves the drawing to the photo library. Asks for add-only access. */
+export async function saveDrawing(
+  format: ExportFormat,
+  source: ExportSource,
 ): Promise<ExportResult> {
-  const permission = await requestPermissionsAsync(/* writeOnly */ true);
-  if (!permission.granted) {
-    return { ok: false, reason: "permission" };
-  }
+  const permission = await requestPermissionsAsync(true);
+  if (!permission.granted) return { ok: false, reason: "permission" };
 
-  const base64 = await captureSvgAsBase64(svgRef, canvasSize ?? {});
-  const file = writePngFile(base64);
+  const file = await writeExportFile(format, source);
   await Asset.create(file.uri);
-
   return { ok: true };
 }
 
-/** Rendert het canvas naar PNG en opent het systeem-deelvenster. */
+/** Opens the system share sheet with the drawing. */
 export async function shareDrawing(
-  svgRef: SvgRef,
-  canvasSize: CanvasSize,
+  format: ExportFormat,
+  source: ExportSource,
 ): Promise<ExportResult> {
-  const available = await Sharing.isAvailableAsync();
-  if (!available) {
-    return { ok: false, reason: "unavailable" };
-  }
+  if (!(await Sharing.isAvailableAsync())) return { ok: false, reason: "unavailable" };
 
-  const base64 = await captureSvgAsBase64(svgRef, canvasSize ?? {});
-  const file = writePngFile(base64);
+  const file = await writeExportFile(format, source);
   await Sharing.shareAsync(file.uri, {
-    mimeType: "image/png",
-    UTI: "public.png",
+    mimeType: MIME_TYPES[format],
+    UTI: UTIS[format],
     dialogTitle: "Deel je tekening",
   });
-
   return { ok: true };
 }
