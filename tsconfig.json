@@ -19,6 +19,6 @@
   ],
   "exclude": [
     "node_modules",
-    "plant-based-barista-ios27"
+    "EXAMPLE"
   ]
 }
