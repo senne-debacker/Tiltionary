@@ -12,6 +12,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useDingSound } from "@/hooks/use-ding-sound";
 import { useSessionStore } from "@/hooks/use-session-store";
+import { startFeedback } from "@/logic/feedback";
+
+startFeedback();
 
 export default function RootLayout() {
   const code = useSessionStore((state) => state.code);

@@ -1,13 +1,12 @@
-// src/screens/AnnouncementScreen.tsx
-// "Speler X tekent!" — 5 seconden lang, zodat iedereen weet wie aan de beurt is.
+// "Player X is drawing!" Shown for five seconds so everyone knows whose turn
+// it is.
 
-import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Animated, Easing } from "react-native";
-import * as Haptics from "expo-haptics";
+import { StyleSheet, View, Text, Animated } from "react-native";
 import { useCountdown } from "@/hooks/use-server-time";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
+import { usePopIn } from "@/hooks/use-pop-in";
 import LeaveButton from "@/components/leave-button";
 import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -25,19 +24,9 @@ export default function AnnouncementScreen() {
   const msLeft = useCountdown(gameState?.phaseEndsAt);
   const drawer = players?.[gameState?.currentDrawerId ?? ""];
   const isYou = gameState?.currentDrawerId === playerId;
-  const scale = useRef(new Animated.Value(0.7)).current;
+  const scale = usePopIn();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    Animated.timing(scale, {
-      toValue: 1,
-      duration: 400,
-      easing: Easing.out(Easing.back(1.6)),
-      useNativeDriver: true,
-    }).start();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [gameState?.currentDrawerId, scale]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

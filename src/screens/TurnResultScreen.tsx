@@ -1,12 +1,7 @@
-// src/screens/TurnResultScreen.tsx
-// Tussenstand na elke beurt: het woord wordt onthuld en je ziet wie wat
-// verdiend heeft.
+// Standings after each turn: reveals the word and shows who earned what.
 
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Text } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { ref, onValue } from "firebase/database";
-import { db } from "../../firebaseConfig";
 import PlayerRow from "@/components/player-row";
 import LeaveButton from "@/components/leave-button";
 import { toRanking } from "@/logic/scoring";
@@ -18,30 +13,19 @@ import { spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
-import type { GuessedMap } from "@/types/game";
 
 export default function TurnResultScreen() {
-  const roomCode = useSessionStore((state) => state.code);
   const playerId = useSessionStore((state) => state.playerId);
   const isHost = useSessionStore((state) => state.isHost);
   const gameState = useRoomStore((state) => state.gameState);
   const players = useRoomStore((state) => state.players);
   const settings = useRoomStore((state) => state.settings);
+  const guessed = useRoomStore((state) => state.guessed);
   const onLeave = useLeaveRoom();
 
-  const [guessed, setGuessed] = useState<GuessedMap>({});
   const msLeft = useCountdown(gameState?.phaseEndsAt);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (!roomCode) return;
-    const unsubscribe = onValue(
-      ref(db, `rooms/${roomCode}/turn/guessed`),
-      (snap) => setGuessed((snap.val() as GuessedMap | null) || {}),
-    );
-    return () => unsubscribe();
-  }, [roomCode]);
 
   const drawerId = gameState?.currentDrawerId;
   const drawer = players?.[drawerId ?? ""];

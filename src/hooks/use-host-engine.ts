@@ -1,14 +1,11 @@
-// src/hooks/use-host-engine.ts
-// De telefoon van de host is de "scheidsrechter": alleen die zet het spel door
-// naar de volgende fase. Alle andere telefoons kijken gewoon naar wat er in
-// Firebase staat. Zo kan het nooit dubbel gebeuren.
+// The host's phone acts as referee: only the host moves the game to its next
+// phase. Every other phone just shows what Firebase says, so a phase change
+// can never happen twice.
 //
-// Elke fase heeft een absolute eindtijd (phaseEndsAt). De host checkt een paar
-// keer per seconde of die verstreken is.
+// Each phase has an absolute end time (phaseEndsAt). The host checks a few
+// times per second whether it has passed.
 
-import { useEffect, useRef, useState } from "react";
-import { ref, onValue } from "firebase/database";
-import { db } from "../../firebaseConfig";
+import { useEffect } from "react";
 import {
   beginChoosing,
   startDrawingTurn,
@@ -17,109 +14,40 @@ import {
   sendSystemMessage,
 } from "@/logic/room";
 import { pickWords } from "@/data/words";
-import type {
-  GameState,
-  GuessedMap,
-  PlayerMap,
-  RoomSettings,
-} from "@/types/game";
-
-type HostEngineArgs = {
-  isHost: boolean;
-  code: string;
-  gameState: GameState | null;
-  players: PlayerMap;
-  settings: RoomSettings | null;
-  serverNow: () => number;
-};
-
-/** Wat de tick-lus nodig heeft; via een ref, zodat de interval stabiel blijft. */
-type EngineSnapshot = {
-  gameState: GameState | null;
-  players: PlayerMap;
-  settings: RoomSettings | null;
-  guessed: GuessedMap;
-};
+import { serverNow } from "@/hooks/use-server-time";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useSessionStore } from "@/hooks/use-session-store";
 
 const TICK_MS = 400;
 
-export default function useHostEngine({
-  isHost,
-  code,
-  gameState,
-  players,
-  settings,
-  serverNow,
-}: HostEngineArgs) {
-  const [guessed, setGuessed] = useState<GuessedMap>({});
-  const latest = useRef<EngineSnapshot>({
-    gameState: null,
-    players: {},
-    settings: null,
-    guessed: {},
-  });
-  // Elke fase krijgt een unieke sleutel. Zo voert de host een overgang nooit
-  // twee keer uit terwijl hij wacht tot de nieuwe status binnenkomt.
-  const handledRef = useRef("");
-  // Voor het opmerken van spelers die verdwijnen (zie effect hieronder).
-  const previousPlayersRef = useRef<PlayerMap | null>(null);
-  const previousCodeRef = useRef<string | null>(null);
-
-  latest.current = { gameState, players, settings, guessed };
-
-  // De host houdt bij wie er al geraden heeft (voor "iedereen is klaar").
-  useEffect(() => {
-    if (!isHost || !code) return;
-    const unsubscribe = onValue(ref(db, `rooms/${code}/turn/guessed`), (snap) =>
-      setGuessed((snap.val() as GuessedMap | null) || {}),
-    );
-    return () => unsubscribe();
-  }, [isHost, code]);
-
-  // Merkt spelers op die verdwijnen (app gesloten, verbinding kwijt, of
-  // gekickt) en post daar een chatbericht over, zodat de rest van de groep
-  // weet wat er gebeurd is. Draait alleen op de host, zodat dit maar 1x
-  // gebeurt en niet dubbel/drievoudig vanaf elk toestel.
-  useEffect(() => {
-    if (!isHost || !code || !players) return;
-
-    if (previousCodeRef.current !== code) {
-      // Nieuwe/andere kamer: niets om de huidige spelers mee te vergelijken.
-      previousCodeRef.current = code;
-      previousPlayersRef.current = null;
-    }
-
-    const previous = previousPlayersRef.current;
-    previousPlayersRef.current = players;
-    if (!previous) return;
-
-    Object.keys(previous).forEach((id) => {
-      if (players[id]) return; // nog steeds aanwezig
-      const name = previous[id]?.name || "Een speler";
-      sendSystemMessage({ code, text: `${name} heeft het spel verlaten.` });
-    });
-  }, [isHost, code, players]);
+/** Runs the phase loop on the host's phone. Does nothing for guests. */
+export default function useHostEngine() {
+  const code = useSessionStore((state) => state.code);
+  const isHost = useSessionStore((state) => state.isHost);
 
   useEffect(() => {
     if (!isHost || !code) return;
 
-    const id = setInterval(async () => {
-      const { gameState, players, settings, guessed } = latest.current;
+    // Key of the phase that was already handled. The next status takes a
+    // moment to arrive, and without this the host would repeat a transition.
+    let handled = "";
+
+    const tick = async () => {
+      const { gameState, players, settings, guessed } = useRoomStore.getState();
       if (!gameState || !settings) return;
-      if (["lobby", "podium"].includes(gameState.status)) return;
+      if (gameState.status === "lobby" || gameState.status === "podium") return;
 
       const key = `${gameState.status}:${gameState.phaseEndsAt}`;
-      if (handledRef.current === key) return;
+      if (handled === key) return;
 
-      const now = serverNow();
-      const timeUp = !!gameState.phaseEndsAt && now >= gameState.phaseEndsAt;
-      const drawerGone = !players?.[gameState.currentDrawerId];
+      const timeUp = !!gameState.phaseEndsAt && serverNow() >= gameState.phaseEndsAt;
+      const drawerGone = !players[gameState.currentDrawerId];
 
       try {
         switch (gameState.status) {
           case "announcement": {
             if (!timeUp && !drawerGone) return;
-            handledRef.current = key;
+            handled = key;
             if (drawerGone) {
               await advanceTurn({ code, gameState, players, settings, serverNow });
             } else {
@@ -130,12 +58,12 @@ export default function useHostEngine({
 
           case "choosing": {
             if (!timeUp && !drawerGone) return;
-            handledRef.current = key;
+            handled = key;
             if (drawerGone) {
               await advanceTurn({ code, gameState, players, settings, serverNow });
               break;
             }
-            // Tekenaar heeft niet gekozen: we kiezen er zelf een.
+            // The drawer ran out of time, so the host picks a word for them.
             const word =
               gameState.wordChoices?.[0] ||
               pickWords(settings.wordPack, gameState.usedWords || {}, 1)[0];
@@ -144,14 +72,14 @@ export default function useHostEngine({
           }
 
           case "playing": {
-            const guessers = Object.keys(players || {}).filter(
+            const guessers = Object.keys(players).filter(
               (id) => id !== gameState.currentDrawerId,
             );
             const everyoneGuessed =
-              guessers.length > 0 && guessers.every((id) => guessed?.[id]);
+              guessers.length > 0 && guessers.every((id) => guessed[id]);
 
             if (!timeUp && !everyoneGuessed && !drawerGone) return;
-            handledRef.current = key;
+            handled = key;
 
             if (everyoneGuessed && !timeUp) {
               await sendSystemMessage({
@@ -176,18 +104,19 @@ export default function useHostEngine({
 
           case "turnResult": {
             if (!timeUp) return;
-            handledRef.current = key;
+            handled = key;
             await advanceTurn({ code, gameState, players, settings, serverNow });
             break;
           }
         }
       } catch (error) {
-        // Mislukt? Sleutel vrijgeven zodat we het opnieuw proberen.
-        handledRef.current = "";
-        console.log("Host engine fout:", error);
+        // Release the key so the next tick retries the transition.
+        handled = "";
+        console.log("Host engine error:", error);
       }
-    }, TICK_MS);
+    };
 
+    const id = setInterval(tick, TICK_MS);
     return () => clearInterval(id);
-  }, [isHost, code, serverNow]);
+  }, [isHost, code]);
 }

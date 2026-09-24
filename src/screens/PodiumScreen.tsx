@@ -1,10 +1,7 @@
-// src/screens/PodiumScreen.tsx
-// Het eindscherm: podium met de top 3, daaronder de volledige stand.
+// Final screen: a podium with the top three and the full ranking below it.
 
-import React, { useEffect } from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import * as Haptics from "expo-haptics";
 import PlayerRow from "@/components/player-row";
 import { toRanking } from "@/logic/scoring";
 import { playAgain } from "@/logic/room";
@@ -16,7 +13,8 @@ import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 
-const PODIUM_ORDER = [1, 0, 2]; // zilver links, goud in het midden, brons rechts
+/** Silver on the left, gold in the middle, bronze on the right. */
+const PODIUM_ORDER = [1, 0, 2];
 const PODIUM_HEIGHTS = [110, 80, 60];
 const PODIUM_KEYS = ["gold", "silver", "bronze"] as const;
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -32,10 +30,6 @@ export default function PodiumScreen() {
   const winner = ranking[0];
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
 
   return (
     <View

@@ -1,8 +1,9 @@
-// src/screens/GameScreen.tsx
-// Het hart van het spel: de tekenaar tekent, de rest raadt via de chat.
-// Dit scherm wordt gebruikt tijdens 'choosing' (woord kiezen) en 'playing'.
+// The heart of the game: the drawer draws and everyone else guesses in the
+// chat. Shown during the "choosing" and "playing" phases.
+//
+// The screen mounts fresh for every turn, so the local drawing always starts
+// empty without any reset logic.
 
-import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -13,8 +14,6 @@ import {
 } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Haptics from "expo-haptics";
-import { ref, onValue } from "firebase/database";
-import { db } from "../../firebaseConfig";
 import DrawingCanvas from "@/components/drawing-canvas";
 import ChatPanel from "@/components/chat-panel";
 import TimerBar from "@/components/timer-bar";
@@ -24,7 +23,7 @@ import LeaveButton from "@/components/leave-button";
 import useTiltDrawing from "@/hooks/use-tilt-drawing";
 import { useCountdown, serverNow } from "@/hooks/use-server-time";
 import { useSessionStore } from "@/hooks/use-session-store";
-import { useRoomStore } from "@/hooks/use-room-store";
+import { useRoomStore, useChatMessages } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
 import { playDing } from "@/hooks/use-ding-sound";
 import {
@@ -35,16 +34,10 @@ import {
   normalizePaths,
 } from "@/logic/drawing";
 import { startDrawingTurn, sendGuess } from "@/logic/room";
-import { canvas, radius, spacing, INK_COLORS } from "@/constants/theme";
+import { canvas, radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
-import type {
-  ChatMap,
-  ChatMessageWithId,
-  GuessedMap,
-  RoomDrawing,
-} from "@/types/game";
 import type { SyncPointsPayload } from "@/hooks/use-tilt-drawing";
 import type { LayoutChangeEvent } from "react-native";
 
@@ -58,6 +51,9 @@ export default function GameScreen() {
   const gameState = useRoomStore((state) => state.gameState);
   const players = useRoomStore((state) => state.players);
   const settings = useRoomStore((state) => state.settings);
+  const guessed = useRoomStore((state) => state.guessed);
+  const remoteDrawing = useRoomStore((state) => state.drawing);
+  const messages = useChatMessages();
   const onLeave = useLeaveRoom();
   const insets = useSafeAreaInsets();
 
@@ -65,17 +61,11 @@ export default function GameScreen() {
   const isChoosing = gameState?.status === "choosing";
   const isPlaying = gameState?.status === "playing";
 
-  const [remoteDrawing, setRemoteDrawing] = useState<RoomDrawing | null>(null);
-  const [chat, setChat] = useState<ChatMap>({});
-  const [guessed, setGuessed] = useState<GuessedMap>({});
-  const [inkColor, setInkColor] = useState(INK_COLORS[0]);
-  const canvasSize = useRef<{ width: number; height: number } | null>(null);
-
   const msLeft = useCountdown(gameState?.phaseEndsAt);
   const theme = useTheme();
   const haveGuessed = !!guessed[playerId];
 
-  // ---- Tekenen ----
+  // ---- Drawing ----
 
   const handleSyncPoints = (payload: SyncPointsPayload) =>
     syncPoints({ code: roomCode, ...payload });
@@ -88,6 +78,8 @@ export default function GameScreen() {
     position,
     drawState,
     isPenLifted,
+    color: inkColor,
+    setColor: setInkColor,
     canUndo,
     handleTouchStart,
     handleTouchEnd,
@@ -96,52 +88,19 @@ export default function GameScreen() {
     undo,
   } = useTiltDrawing({
     enabled: isDrawer && isPlaying,
-    color: inkColor,
     onSyncPoints: handleSyncPoints,
     onClearRemote: handleClearRemote,
     onUndoRemote: handleUndoRemote,
   });
 
-  // Nieuwe beurt (nieuw woord): begin met een leeg canvas.
-  useEffect(() => {
-    clear();
-  }, [gameState?.currentWord, gameState?.currentDrawerId, clear]);
-
-  // De raders schalen de tekening naar hun eigen scherm. Daarvoor moeten ze
-  // weten hoe groot het canvas van de tekenaar is.
+  // Guessers scale the drawing to their own screen, so they need the size of
+  // the drawer's canvas. onLayout fires again when the toolbars appear at the
+  // start of the turn, so the published size always matches.
   const onCanvasLayout = (event: LayoutChangeEvent) => {
     handleLayout(event);
     const { width, height } = event.nativeEvent.layout;
-    canvasSize.current = { width, height };
     if (isDrawer) publishCanvasSize({ code: roomCode, width, height });
   };
-
-  useEffect(() => {
-    if (!isDrawer || !isPlaying || !canvasSize.current) return;
-    publishCanvasSize({ code: roomCode, ...canvasSize.current });
-  }, [isDrawer, isPlaying, roomCode, gameState?.currentWord]);
-
-  // ---- Live data ----
-
-  useEffect(() => {
-    if (!roomCode) return;
-    const unsubscribers = [
-      onValue(ref(db, `rooms/${roomCode}/drawing`), (snap) =>
-        setRemoteDrawing(snap.val() as RoomDrawing | null),
-      ),
-      onValue(ref(db, `rooms/${roomCode}/chat`), (snap) =>
-        setChat((snap.val() as ChatMap | null) || {}),
-      ),
-      onValue(ref(db, `rooms/${roomCode}/turn/guessed`), (snap) =>
-        setGuessed((snap.val() as GuessedMap | null) || {}),
-      ),
-    ];
-    return () => unsubscribers.forEach((off) => off());
-  }, [roomCode]);
-
-  const messages = Object.entries(chat)
-    .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
-    .sort((a, b) => (a.at || 0) - (b.at || 0));
 
   const remotePaths = normalizePaths(remoteDrawing?.paths);
 
@@ -151,7 +110,7 @@ export default function GameScreen() {
       ? undefined
       : `0 0 ${canvasDims.width} ${canvasDims.height}`;
 
-  // ---- Acties ----
+  // ---- Actions ----
 
   const handleChooseWord = (word: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -170,11 +129,11 @@ export default function GameScreen() {
     });
     if (result.correct && !result.already) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      playDing(); // alleen voor jezelf
+      playDing();
     }
   };
 
-  // ---- Weergave ----
+  // ---- Display ----
 
   const guessers = Object.keys(players || {}).filter(
     (id) => id !== gameState?.currentDrawerId,
@@ -183,7 +142,7 @@ export default function GameScreen() {
   const drawerName = players?.[gameState?.currentDrawerId ?? ""]?.name || "Speler";
   const word = gameState?.currentWord || "";
 
-  // Raders zien alleen streepjes, tenzij ze het al geraden hebben.
+  // Guessers only see blanks until they guess the word.
   const wordDisplay = isChoosing
     ? "• • •"
     : isDrawer || haveGuessed
@@ -331,9 +290,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm + 2,
   },
   overlay: {
-    // Expliciet uitgeschreven: StyleSheet.absoluteFillObject bestaat niet meer
-    // in React Native 0.86 — spreaden van undefined faalt stil en dit blok
-    // zou zijn absolute positie kwijtraken.
+    // StyleSheet.absoluteFillObject was removed in React Native 0.86.
     position: "absolute",
     top: 0,
     left: 0,

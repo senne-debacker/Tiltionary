@@ -1,22 +1,20 @@
-// src/hooks/use-tilt-drawing.ts
-// Het tekenen zelf: kantel de telefoon om het balletje te rollen, tik om je
-// pen op te tillen. Wissen en ongedaan maken gaan via expliciete knoppen
-// (clear()/undo()) in plaats van een schudgebaar — dat triggerde te makkelijk
-// per ongeluk tijdens gewoon tekenen.
+// Drawing by tilting: tilt the phone to roll the ball, tap to lift the pen.
+// Clearing and undoing use explicit buttons, because a shake gesture fired
+// too easily while drawing.
 //
-// De hook werkt met refs in plaats van state binnen de accelerometer-listener,
-// omdat die 60x per seconde afgaat. State daarin uitlezen zou verouderde
-// waarden geven (stale closure).
+// The accelerometer fires 60 times per second and its listener is created
+// once, so it reads refs instead of state to avoid stale values. Every state
+// setter below updates its ref at the same moment.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dimensions } from "react-native";
 import { Accelerometer } from "expo-sensors";
 import * as Haptics from "expo-haptics";
-import { INK } from "@/constants/theme";
+import { INK_COLORS } from "@/constants/theme";
 import type { DrawPath, Point } from "@/types/game";
 import type { LayoutChangeEvent, GestureResponderEvent } from "react-native";
 
-/** Wat er naar Firebase gestuurd wordt als er nieuwe punten bijkomen. */
+/** New points of one line, sent to Firebase in a batch. */
 export type SyncPointsPayload = {
   pathIndex: number;
   startIndex: number;
@@ -24,9 +22,10 @@ export type SyncPointsPayload = {
   color: string;
 };
 
+type DrawState = "waiting" | "drawing";
+
 type TiltDrawingArgs = {
   enabled?: boolean;
-  color?: string;
   onSyncPoints?: (payload: SyncPointsPayload) => void;
   onClearRemote?: () => void;
   onUndoRemote?: (removedPathIndex: number) => void;
@@ -36,53 +35,68 @@ const screen = Dimensions.get("window");
 
 export const BALL_RADIUS = 10;
 const SENSITIVITY = 15;
-const MIN_POINT_DISTANCE = 2; // pas een punt opslaan na deze afstand
-const SYNC_INTERVAL_MS = 100; // hoe vaak we naar Firebase sturen
-const UPDATE_INTERVAL_MS = 16; // ~60 fps
+/** Minimum distance in px before a new point is stored. */
+const MIN_POINT_DISTANCE = 2;
+/** How often new points are sent to Firebase. */
+const SYNC_INTERVAL_MS = 100;
+/** Accelerometer interval, about 60 fps. */
+const UPDATE_INTERVAL_MS = 16;
 
+/** Tilt-to-draw state and handlers for a drawing canvas. */
 export default function useTiltDrawing({
   enabled = true,
-  color = INK, // huidige inktkleur; wisselen splitst de lopende lijn meteen
   onSyncPoints,
   onClearRemote,
   onUndoRemote,
 }: TiltDrawingArgs = {}) {
   const [paths, setPaths] = useState<DrawPath[]>([]);
-  const [position, setPosition] = useState({
+  const [position, setPosition] = useState<Point>({
     x: screen.width / 2,
     y: screen.height / 2,
   });
-  const [drawState, setDrawState] = useState<"waiting" | "drawing">("waiting");
+  const [drawState, setDrawState] = useState<DrawState>("waiting");
   const [isPenLifted, setIsPenLifted] = useState(false);
+  const [color, setColorState] = useState(INK_COLORS[0]);
 
-  const posRef = useRef(position);
   const pathsRef = useRef<DrawPath[]>([]);
-  const drawStateRef = useRef<"waiting" | "drawing">("waiting");
+  const positionRef = useRef(position);
+  const drawStateRef = useRef<DrawState>("waiting");
   const penLiftedRef = useRef(false);
-  const boundsRef = useRef({ width: screen.width, height: screen.height });
   const colorRef = useRef(color);
-  colorRef.current = color;
+  const boundsRef = useRef({ width: screen.width, height: screen.height });
 
-  // Bijhouden wat er al naar Firebase gestuurd is, zodat we alleen de NIEUWE
-  // punten versturen in plaats van elke keer de hele (groeiende) lijn.
+  // What was already sent, so only new points go to Firebase instead of
+  // the whole growing line.
   const lastSyncTime = useRef(0);
   const syncedPathIndexRef = useRef(-1);
   const syncedPointCountRef = useRef(0);
 
-  // Callbacks in een ref: de listener hieronder mag niet opnieuw opgebouwd
-  // worden telkens als de parent rendert.
+  // Kept in a ref so the accelerometer listener is not rebuilt whenever the
+  // parent re-renders.
   const callbacks = useRef({ onSyncPoints, onClearRemote, onUndoRemote });
   callbacks.current = { onSyncPoints, onClearRemote, onUndoRemote };
 
-  useEffect(() => {
-    pathsRef.current = paths;
-  }, [paths]);
-  useEffect(() => {
-    drawStateRef.current = drawState;
-  }, [drawState]);
-  useEffect(() => {
-    penLiftedRef.current = isPenLifted;
-  }, [isPenLifted]);
+  // ---- State and ref together ----
+
+  const updatePaths = (next: DrawPath[]) => {
+    pathsRef.current = next;
+    setPaths(next);
+  };
+
+  const updatePosition = (next: Point) => {
+    positionRef.current = next;
+    setPosition(next);
+  };
+
+  const updateDrawState = (next: DrawState) => {
+    drawStateRef.current = next;
+    setDrawState(next);
+  };
+
+  const updatePenLifted = (next: boolean) => {
+    penLiftedRef.current = next;
+    setIsPenLifted(next);
+  };
 
   const resetSyncTracking = () => {
     syncedPathIndexRef.current = -1;
@@ -90,86 +104,96 @@ export default function useTiltDrawing({
     lastSyncTime.current = 0;
   };
 
-  // Een kleurwissel geldt vanaf NU, ook midden in een lijn — niet pas na het
-  // optillen van de pen. We knippen de huidige lijn op de plek waar de bal nu
-  // staat en beginnen daar een nieuw segment in de nieuwe kleur, zodat het
-  // op het scherm als één doorlopende lijn oogt die van kleur verandert.
-  const prevColorRef = useRef(color);
-  useEffect(() => {
-    if (!enabled || prevColorRef.current === color) return;
-    prevColorRef.current = color;
+  // ---- Actions ----
+
+  /**
+   * Changes the ink color right away, even in the middle of a line. The line
+   * is split at the ball, so it reads as one line that changes color.
+   */
+  const setColor = (next: string) => {
+    if (next === colorRef.current) return;
+    colorRef.current = next;
+    setColorState(next);
 
     if (drawStateRef.current !== "drawing" || penLiftedRef.current) return;
     if (pathsRef.current.length === 0) return;
 
-    const splitPoint = posRef.current;
-    const newPaths = [...pathsRef.current, { color, points: [splitPoint] }];
-    pathsRef.current = newPaths;
-    setPaths(newPaths);
-    // De sync-logica in de accelerometer-listener hieronder merkt vanzelf dat
-    // pathIndex nu hoger ligt dan syncedPathIndexRef en start de teller dan
-    // opnieuw bij 0 — geen aparte reset hier nodig.
-  }, [color, enabled]);
+    // The sync logic sees the higher path index and starts a new count.
+    updatePaths([...pathsRef.current, { color: next, points: [positionRef.current] }]);
+  };
 
-  // De useCallbacks hieronder blijven expres staan, ook nu de React Compiler
-  // aanstaat: `clear` zit in de dependency-array van een effect in het
-  // spelscherm. Zou die elke render een nieuwe functie zijn, dan liep dat
-  // effect continu opnieuw en werd het canvas onophoudelijk leeggemaakt.
-
-  /** Alles wissen (bij een nieuwe beurt of via de "Wis alles"-knop). */
-  const clear = useCallback(({ notifyRemote = false } = {}) => {
-    setPaths([]);
-    setDrawState("waiting");
-    setIsPenLifted(false);
-    pathsRef.current = [];
-    drawStateRef.current = "waiting";
-    penLiftedRef.current = false;
+  /** Clears the canvas locally and for the other players. */
+  const clear = () => {
+    updatePaths([]);
+    updateDrawState("waiting");
+    updatePenLifted(false);
     resetSyncTracking();
-    if (notifyRemote) callbacks.current.onClearRemote?.();
-  }, []);
+    callbacks.current.onClearRemote?.();
+  };
 
-  /** Haalt alleen de laatst getekende lijn weg. */
-  const undo = useCallback(() => {
+  /** Removes only the most recent line. */
+  const undo = () => {
     const current = pathsRef.current;
     if (current.length === 0) return;
 
     const removedIndex = current.length - 1;
     const remaining = current.slice(0, removedIndex);
-
-    setPaths(remaining);
-    pathsRef.current = remaining;
+    updatePaths(remaining);
+    updatePenLifted(false);
 
     if (remaining.length === 0) {
-      // Niets meer over: terug naar "tik om het balletje te laten vallen".
-      setDrawState("waiting");
-      setIsPenLifted(false);
-      drawStateRef.current = "waiting";
-      penLiftedRef.current = false;
+      updateDrawState("waiting");
     } else {
-      // Ga verder vanaf het eindpunt van de lijn die nu de laatste is.
+      // Continue from the end of what is now the last line.
       const lastPath = remaining[remaining.length - 1];
       const lastPoint = lastPath.points[lastPath.points.length - 1];
-      if (lastPoint) {
-        posRef.current = lastPoint;
-        setPosition(lastPoint);
-      }
-      setIsPenLifted(false);
-      penLiftedRef.current = false;
+      if (lastPoint) updatePosition(lastPoint);
     }
 
-    // De verwijderde lijn had index `removedIndex`; als er straks een nieuwe
-    // lijn bijkomt, krijgt die dezelfde index opnieuw — dus de synctellers
-    // resetten, anders denkt de sync-logica dat die "nieuwe" lijn al voor
-    // een deel verstuurd was.
+    // The next new line reuses the removed index, so the sync counters
+    // must start over or it would look partly sent already.
     resetSyncTracking();
     callbacks.current.onUndoRemote?.(removedIndex);
-  }, []);
+  };
 
-  /** Canvasgrootte onthouden, zodat het balletje binnen het vlak blijft. */
-  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+  /** Stores the canvas size so the ball stays inside it. */
+  const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     boundsRef.current = { width, height };
-  }, []);
+  };
+
+  const handleTouchStart = (event: GestureResponderEvent) => {
+    if (!enabled) return;
+    const { locationX, locationY } = event.nativeEvent;
+
+    if (drawStateRef.current === "waiting") {
+      // First tap drops the ball where the finger is.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const start = { x: locationX, y: locationY };
+      updatePosition(start);
+      updateDrawState("drawing");
+      updatePaths([{ color: colorRef.current, points: [start] }]);
+    } else {
+      // Any later tap lifts the pen while the finger is down.
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      updatePenLifted(true);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!enabled) return;
+    if (drawStateRef.current !== "drawing" || !penLiftedRef.current) return;
+
+    // Pen down again: start a new line from the current position.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    updatePenLifted(false);
+    updatePaths([
+      ...pathsRef.current,
+      { color: colorRef.current, points: [positionRef.current] },
+    ]);
+  };
+
+  // ---- Accelerometer ----
 
   useEffect(() => {
     if (!enabled) return;
@@ -179,31 +203,17 @@ export default function useTiltDrawing({
       if (drawStateRef.current === "waiting") return;
 
       const { width, height } = boundsRef.current;
-      let newX = posRef.current.x + x * SENSITIVITY;
-      let newY = posRef.current.y - y * SENSITIVITY;
-      let bounced = false;
+      const rawX = positionRef.current.x + x * SENSITIVITY;
+      const rawY = positionRef.current.y - y * SENSITIVITY;
+      const newX = Math.min(Math.max(rawX, BALL_RADIUS), width - BALL_RADIUS);
+      const newY = Math.min(Math.max(rawY, BALL_RADIUS), height - BALL_RADIUS);
 
-      if (newX < BALL_RADIUS) {
-        newX = BALL_RADIUS;
-        bounced = true;
+      if (newX !== rawX || newY !== rawY) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      if (newX > width - BALL_RADIUS) {
-        newX = width - BALL_RADIUS;
-        bounced = true;
-      }
-      if (newY < BALL_RADIUS) {
-        newY = BALL_RADIUS;
-        bounced = true;
-      }
-      if (newY > height - BALL_RADIUS) {
-        newY = height - BALL_RADIUS;
-        bounced = true;
-      }
-
-      if (bounced) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const newPos = { x: newX, y: newY };
-      posRef.current = newPos;
+      positionRef.current = newPos;
       setPosition(newPos);
 
       if (penLiftedRef.current || pathsRef.current.length === 0) return;
@@ -221,9 +231,10 @@ export default function useTiltDrawing({
       }
 
       points.push(newPos);
+      pathsRef.current = currentPaths;
       setPaths(currentPaths);
 
-      // Nieuwe lijn (na optillen)? Teller opnieuw beginnen.
+      // A new line started since the last sync, so count from zero.
       if (syncedPathIndexRef.current !== pathIndex) {
         syncedPathIndexRef.current = pathIndex;
         syncedPointCountRef.current = 0;
@@ -248,44 +259,14 @@ export default function useTiltDrawing({
     return () => subscription.remove();
   }, [enabled]);
 
-  const handleTouchStart = useCallback(
-    (event: GestureResponderEvent) => {
-      if (!enabled) return;
-      const { locationX, locationY } = event.nativeEvent;
-
-      if (drawStateRef.current === "waiting") {
-        // Eerste tik: laat het balletje vallen waar je tikt.
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        const start = { x: locationX, y: locationY };
-        posRef.current = start;
-        setPosition(start);
-        setDrawState("drawing");
-        setPaths([{ color: colorRef.current, points: [start] }]);
-      } else {
-        // Tik tijdens het tekenen: pen omhoog.
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setIsPenLifted(true);
-      }
-    },
-    [enabled],
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    if (!enabled) return;
-    if (drawStateRef.current !== "drawing" || !penLiftedRef.current) return;
-
-    // Pen weer neer: begin een nieuwe losse lijn vanaf de huidige plek.
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsPenLifted(false);
-    setPaths((prev) => [...prev, { color: colorRef.current, points: [posRef.current] }]);
-  }, [enabled]);
-
   return {
     paths,
     position,
     drawState,
     isPenLifted,
+    color,
     canUndo: paths.length > 0,
+    setColor,
     handleTouchStart,
     handleTouchEnd,
     handleLayout,

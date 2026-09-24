@@ -1,11 +1,11 @@
-// src/hooks/use-leave-room.ts
-// De "verlaat/sluit kamer"-flow op één plek: bevestiging vragen, opruimen in
-// Firebase, en de lokale sessie wissen.
+// The "leave or close room" flow in one place: ask for confirmation, clean up
+// in Firebase and clear the local session.
 
 import { Alert } from "react-native";
 import { leaveRoom } from "@/logic/room";
 import { useSessionStore } from "@/hooks/use-session-store";
 
+/** Returns a handler that asks to leave the room and then leaves it. */
 export function useLeaveRoom() {
   return () => {
     const { code, playerId, isHost, clearSession } = useSessionStore.getState();
@@ -21,8 +21,10 @@ export function useLeaveRoom() {
           text: isHost ? "Sluiten" : "Verlaten",
           style: "destructive",
           onPress: () => {
-            leaveRoom({ code, playerId, isHost });
+            // Clear the session first. Firebase reports our own removal
+            // right away, and the room listener must see it as expected.
             clearSession();
+            leaveRoom({ code, playerId, isHost });
           },
         },
       ],

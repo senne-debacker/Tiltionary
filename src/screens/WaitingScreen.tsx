@@ -1,8 +1,6 @@
-// src/screens/WaitingScreen.tsx
-// De wachtruimte. De host stelt hier het spel in en start het; iedereen kan
-// alvast chatten.
+// The waiting room. The host sets up and starts the game, and everyone can
+// already chat.
 
-import { useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -13,8 +11,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { ref, onValue } from "firebase/database";
-import { db } from "../../firebaseConfig";
 import PlayerRow from "@/components/player-row";
 import ChatPanel from "@/components/chat-panel";
 import { WORD_PACKS, PACK_KEYS } from "@/data/words";
@@ -29,17 +25,13 @@ import { radius, spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSessionStore } from "@/hooks/use-session-store";
-import { useRoomStore } from "@/hooks/use-room-store";
+import { useRoomStore, useChatMessages } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
 import { serverNow } from "@/hooks/use-server-time";
 import { ThemedText } from "@/components/themed-text";
-import type { ChatMap, ChatMessageWithId } from "@/types/game";
 import type { WordPackKey } from "@/data/words";
 
-/**
- * Generiek: `T` is het type van één optie (een getal voor rondes/tijd, een
- * pakket-sleutel voor woordpakketten).
- */
+/** Props for a row of options. `T` is a number for rounds and time, or a word pack key. */
 type OptionRowProps<T extends string | number> = {
   label: string;
   options: readonly T[];
@@ -115,18 +107,7 @@ export default function WaitingScreen() {
     ...p,
   }));
 
-  const [chat, setChat] = useState<ChatMap>({});
-  useEffect(() => {
-    if (!roomCode) return;
-    const unsubscribe = onValue(ref(db, `rooms/${roomCode}/chat`), (snap) =>
-      setChat((snap.val() as ChatMap | null) || {}),
-    );
-    return () => unsubscribe();
-  }, [roomCode]);
-
-  const messages = Object.entries(chat)
-    .map(([id, message]): ChatMessageWithId => ({ ...message, id }))
-    .sort((a, b) => (a.at || 0) - (b.at || 0));
+  const messages = useChatMessages();
 
   const handleSendChat = (text: string) =>
     sendChatMessage({ code: roomCode, playerId, name: nickname, text });
@@ -232,9 +213,8 @@ export default function WaitingScreen() {
         <OptionRow
           label="Woordpakket"
           options={PACK_KEYS}
-          // Cast omdat wat in Firebase staat élke string kan zijn (bv. een
-          // pakketnaam uit een oudere versie); pickWords valt dan terug op
-          // het standaardpakket.
+          // Firebase can hold any string, such as a pack from an older
+          // version. pickWords falls back to the default pack in that case.
           value={activeSettings.wordPack as WordPackKey}
           onSelect={(value) => patch({ wordPack: value })}
           format={(key: WordPackKey) =>

@@ -1,21 +1,17 @@
-// src/hooks/use-presence.ts
-// Regelt wat er gebeurt als iemand de app sluit, backgroundt, of het netwerk
-// verliest — zie de opmerking bovenaan room.js voor waarom dit via Firebase's
-// onDisconnect() gaat in plaats van te proberen dit zelf op te vangen in JS.
+// Handles players closing the app, backgrounding it or losing their network.
+// Removal goes through Firebase's onDisconnect(), which the server runs even
+// when the app has no time left to run JavaScript (see room.ts).
 //
-//  - Host sluit de app (of crasht, of verliest het netwerk): de hele kamer
-//    wordt meteen verwijderd. Alle spelers zien dat vanzelf via hun gewone
-//    room-listener (gameState wordt null) en gaan terug naar het startscherm.
-//  - Host backgroundt de app maar sluit 'm niet (bv. even een berichtje
-//    lezen): geen onmiddellijke cancel. We geven HOST_AWAY_GRACE_MS de tijd
-//    om terug te komen. Komt de host niet op tijd terug, dan ruimt WELK
-//    TOESTEL DAN OOK dat opmerkt de kamer op — expres niet enkel de host zelf,
-//    want zijn eigen JS-timers lopen niet betrouwbaar door zolang de app in
-//    de achtergrond zit (React Native pauzeert die dan).
-//  - Gast sluit de app / verliest het netwerk: alleen die speler verdwijnt.
-//    useHostEngine merkt dat op en post de "X heeft het spel verlaten"-chat.
-import { useEffect, useRef } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+// - Host closes the app, crashes or loses network: the whole room is removed.
+//   Every guest sees gameState turn null and returns to the home screen.
+// - Host only backgrounds the app: the room waits HOST_AWAY_GRACE_MS. If the
+//   host is not back by then, any phone that notices removes the room. The
+//   host cannot do this itself, because timers pause in the background.
+// - Guest leaves: only that player is removed. useRoomSubscription notices
+//   and the host posts a "left the game" message.
+
+import { useEffect } from "react";
+import { AppState } from "react-native";
 import { ref, onValue } from "firebase/database";
 import { db } from "../../firebaseConfig";
 import {
@@ -25,69 +21,57 @@ import {
   removeRoom,
   HOST_AWAY_GRACE_MS,
 } from "@/logic/room";
+import { serverNow } from "@/hooks/use-server-time";
+import { useRoomStore } from "@/hooks/use-room-store";
+import { useSessionStore } from "@/hooks/use-session-store";
 
-export default function usePresence({
-  code,
-  playerId,
-  isHost,
-  hostAwaySince,
-  serverNow,
-}: {
-  code: string;
-  playerId: string;
-  isHost: boolean;
-  hostAwaySince?: number | null;
-  serverNow: () => number;
-}) {
-  const hostAwayRef = useRef(false);
+/** Keeps this phone's presence in the room up to date. Call it once. */
+export default function usePresence() {
+  const code = useSessionStore((state) => state.code);
+  const playerId = useSessionStore((state) => state.playerId);
+  const isHost = useSessionStore((state) => state.isHost);
+  const hostAwaySince = useRoomStore((state) => state.gameState?.hostAwaySince);
 
-  // (Opnieuw) instellen van de onDisconnect-instructie, telkens de verbinding
-  // (her)opgebouwd wordt. Zo'n instructie vuurt maar 1x, dus na een korte
-  // netwerk-hik (niet: de app sluiten) moet hij opnieuw ingesteld worden —
-  // anders zou een speler die even wifi verloor en vanzelf weer verbond niet
-  // meer beschermd zijn bij een 2e, echte disconnect.
+  // An onDisconnect instruction fires only once. It is attached again after
+  // every reconnect, so a short network drop does not leave a player
+  // unprotected against a second, real disconnect.
   useEffect(() => {
-    if (!code || !playerId) return undefined;
+    if (!code || !playerId) return;
 
-    const unsubscribe = onValue(ref(db, ".info/connected"), (snap) => {
+    return onValue(ref(db, ".info/connected"), (snap) => {
       if (!snap.val()) return;
       if (isHost) attachHostDisconnect(code);
       else attachPlayerDisconnect(code, playerId);
     });
-
-    return () => unsubscribe();
   }, [code, playerId, isHost]);
 
-  // Host: bijhouden of de app naar de achtergrond gaat / terugkomt.
+  // The host reports when the app goes to the background and comes back.
   useEffect(() => {
-    if (!isHost || !code) return undefined;
+    if (!isHost || !code) return;
 
-    const handleChange = (nextState: AppStateStatus) => {
+    let away = false;
+    const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "background") {
-        hostAwayRef.current = true;
+        away = true;
         setHostAway({ code, since: serverNow() });
-      } else if (nextState === "active" && hostAwayRef.current) {
-        hostAwayRef.current = false;
+      } else if (nextState === "active" && away) {
+        away = false;
         setHostAway({ code, since: null });
       }
-    };
+    });
 
-    const subscription = AppState.addEventListener("change", handleChange);
     return () => subscription.remove();
-  }, [isHost, code, serverNow]);
+  }, [isHost, code]);
 
-  // Elk toestel (bewust ook de gasten): als de genadetijd verstreken is
-  // zonder dat de host terugkwam, kamer opruimen. Idempotent — het maakt niet
-  // uit als meerdere toestellen dit tegelijk proberen.
+  // Every phone, guests included, removes the room once the grace period
+  // runs out. Removing twice is harmless.
   useEffect(() => {
-    if (!code || !hostAwaySince) return undefined;
+    if (!code || !hostAwaySince) return;
 
     const id = setInterval(() => {
-      if (serverNow() - hostAwaySince > HOST_AWAY_GRACE_MS) {
-        removeRoom(code);
-      }
+      if (serverNow() - hostAwaySince > HOST_AWAY_GRACE_MS) removeRoom(code);
     }, 2000);
 
     return () => clearInterval(id);
-  }, [code, hostAwaySince, serverNow]);
+  }, [code, hostAwaySince]);
 }

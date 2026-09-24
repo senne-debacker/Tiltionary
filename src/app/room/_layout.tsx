@@ -1,71 +1,33 @@
-// src/app/room/_layout.tsx
-// Alles wat voor de hele kamer geldt: de Firebase-listeners, de spelmotor van
-// de host, aanwezigheid, en welke fase je te zien krijgt.
+// Everything that applies to the whole room: the Firebase listeners, the
+// host's game engine, presence, and which phase screen is shown.
 //
-// De fase komt uit Firebase en is voor iedereen hetzelfde. Elke fase heeft hier
-// een eigen scherm met een guard; omdat er altijd precies één guard waar is,
-// bevat de navigator ook altijd precies één scherm. Wisselt de status, dan
-// verdwijnt het oude scherm en komt het nieuwe ervoor in de plaats — op elke
-// telefoon tegelijk, zonder dat iemand op iets moet klikken.
+// The phase comes from Firebase and is the same for everyone. Each phase has
+// its own screen behind a guard, and exactly one guard is true at a time. When
+// the status changes, the old screen is replaced on every phone at once.
 
-import { useEffect } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRoomSubscription } from "@/hooks/use-room-subscription";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore } from "@/hooks/use-room-store";
 import useHostEngine from "@/hooks/use-host-engine";
 import usePresence from "@/hooks/use-presence";
-import { serverNow } from "@/hooks/use-server-time";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function RoomLayout() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   const code = useSessionStore((state) => state.code);
-  const playerId = useSessionStore((state) => state.playerId);
   const isHost = useSessionStore((state) => state.isHost);
-  const clearSession = useSessionStore((state) => state.clearSession);
-
   const gameState = useRoomStore((state) => state.gameState);
-  const players = useRoomStore((state) => state.players);
-  const settings = useRoomStore((state) => state.settings);
   const loaded = useRoomStore((state) => state.loaded);
 
   useRoomSubscription(code);
-
-  useHostEngine({ isHost, code, gameState, players, settings, serverNow });
-  usePresence({
-    code,
-    playerId,
-    isHost,
-    hostAwaySince: gameState?.hostAwaySince,
-    serverNow,
-  });
-
-  // Kamer weg of eruit gezet? Netjes terug naar het startscherm.
-  useEffect(() => {
-    if (!code || !loaded) return;
-
-    if (!gameState) {
-      // Dit vuurt zowel wanneer de host bewust "Sluiten" indrukt, als wanneer
-      // Firebase's onDisconnect de kamer opruimt (app dicht, crash, of de
-      // genadetijd overschreden — zie use-presence.ts). Voor de speler voelt
-      // dat hetzelfde: de host is er niet meer.
-      clearSession();
-      Alert.alert("Host is weg", "De host heeft het spel verlaten.");
-      return;
-    }
-
-    const playerIds = Object.keys(players || {});
-    if (playerIds.length > 0 && !players[playerId]) {
-      clearSession();
-      Alert.alert("Verwijderd", "Je bent uit de kamer gezet door de host.");
-    }
-  }, [code, playerId, loaded, gameState, players, clearSession]);
+  useHostEngine();
+  usePresence();
 
   const status = gameState?.status;
 
@@ -97,8 +59,7 @@ export default function RoomLayout() {
         </Stack.Protected>
       </Stack>
 
-      {/* Puur voor de gasten: de host ziet dit uiteraard niet zelf (die is
-          net weg), maar zonder dit voelt een bevroren scherm als een bug. */}
+      {/* Guests only. Without it, a paused game looks like a frozen app. */}
       {!isHost && !!gameState?.hostAwaySince && (
         <View
           style={[

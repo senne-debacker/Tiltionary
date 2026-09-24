@@ -17,7 +17,7 @@ import ColorPicker from "@/components/color-picker";
 import DrawingToolbar from "@/components/drawing-toolbar";
 import useTiltDrawing from "@/hooks/use-tilt-drawing";
 import { saveDrawingToLibrary, shareDrawing } from "@/logic/export-drawing";
-import { radius, spacing, shadow, INK_COLORS } from "@/constants/theme";
+import { radius, spacing, shadow } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
@@ -26,7 +26,6 @@ import type { LayoutChangeEvent } from "react-native";
 export default function SandboxScreen({ onExit }: { onExit: () => void }) {
   useKeepAwake();
 
-  const [inkColor, setInkColor] = useState(INK_COLORS[0]);
   const [showExport, setShowExport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const svgRef = useRef(null);
@@ -39,13 +38,15 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
     position,
     drawState,
     isPenLifted,
+    color: inkColor,
+    setColor: setInkColor,
     canUndo,
     handleTouchStart,
     handleTouchEnd,
     handleLayout,
     clear,
     undo,
-  } = useTiltDrawing({ enabled: true, color: inkColor });
+  } = useTiltDrawing({ enabled: true });
 
   const onCanvasLayout = (event: LayoutChangeEvent) => {
     handleLayout(event);
