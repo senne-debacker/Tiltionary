@@ -4,16 +4,20 @@
 import {
   StyleSheet,
   View,
-  Text,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PlayerRow from "@/components/player-row";
 import ChatPanel from "@/components/chat-panel";
-import { WORD_PACKS, PACK_KEYS } from "@/data/words";
+import LeaveButton from "@/components/leave-button";
+import { Button } from "@/components/button";
+import { DigitTiles } from "@/components/digit-tiles";
+import { CodeLabel, ThemedText } from "@/components/themed-text";
+import { WORD_PACKS, PACK_KEYS, type WordPackKey } from "@/data/words";
 import {
   kickPlayer,
   updateSettings,
@@ -21,15 +25,18 @@ import {
   sendChatMessage,
   DEFAULT_SETTINGS,
 } from "@/logic/room";
-import { radius, spacing } from "@/constants/theme";
+import {
+  BRAND_COLORS,
+  ON_COLOR,
+  radius,
+  spacing,
+  stroke,
+} from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore, useChatMessages } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
 import { serverNow } from "@/hooks/use-server-time";
-import { ThemedText } from "@/components/themed-text";
-import type { WordPackKey } from "@/data/words";
 
 /** Props for a row of options. `T` is a number for rounds and time, or a word pack key. */
 type OptionRowProps<T extends string | number> = {
@@ -38,11 +45,19 @@ type OptionRowProps<T extends string | number> = {
   value: T;
   onSelect: (value: T) => void;
   format?: (value: T) => string;
+  /** Optional colored dot in front of an option. */
+  dot?: (value: T) => string;
   disabled?: boolean;
 };
 
 const ROUND_OPTIONS = [1, 2, 3, 4, 5];
 const TIMER_OPTIONS = [30, 45, 60, 90, 120];
+const RULES = [
+  "Elke speler tekent één keer per ronde.",
+  "Raden gaat via de chat: hoe sneller, hoe meer punten, tot 1000.",
+  "De drie snelste raders krijgen een bonus van 300, 200 en 100.",
+  "De tekenaar krijgt 100 punten per speler die het raadt.",
+];
 
 function OptionRow<T extends string | number>({
   label,
@@ -50,40 +65,45 @@ function OptionRow<T extends string | number>({
   value,
   onSelect,
   format,
+  dot,
   disabled,
 }: OptionRowProps<T>) {
   const theme = useTheme();
 
   return (
     <View style={styles.settingBlock}>
-      <ThemedText style={styles.settingLabel}>{label}</ThemedText>
+      <ThemedText type="smallStrong">{label}</ThemedText>
       <View style={styles.optionRow}>
         {options.map((option) => {
           const selected = option === value;
           return (
-            <TouchableOpacity
+            <Pressable
               key={option}
               style={[
                 styles.option,
-                { backgroundColor: theme.surfaceLighter },
-                selected && {
-                  backgroundColor: theme.primary,
-                  borderColor: theme.primary,
+                {
+                  borderColor: theme.line,
+                  backgroundColor: selected ? theme.text : theme.surface,
                 },
-                disabled && styles.optionDisabled,
+                disabled && !selected && styles.optionDisabled,
               ]}
-              onPress={() => !disabled && onSelect(option)}
+              onPress={() => onSelect(option)}
               disabled={disabled}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled }}
             >
-              <Text
-                style={[
-                  styles.optionText,
-                  { color: selected ? "#FFFFFF" : theme.textMuted },
-                ]}
+              {dot && (
+                <View
+                  style={[styles.dot, { backgroundColor: dot(option), borderColor: theme.line }]}
+                />
+              )}
+              <ThemedText
+                type="smallStrong"
+                style={{ color: selected ? theme.background : theme.text }}
               >
                 {format ? format(option) : option}
-              </Text>
-            </TouchableOpacity>
+              </ThemedText>
+            </Pressable>
           );
         })}
       </View>
@@ -98,41 +118,29 @@ export default function WaitingScreen() {
   const isHost = useSessionStore((state) => state.isHost);
   const players = useRoomStore((state) => state.players);
   const settings = useRoomStore((state) => state.settings);
+  const messages = useChatMessages();
   const onLeave = useLeaveRoom();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
 
   const activeSettings = settings || DEFAULT_SETTINGS;
-  const playerList = Object.entries(players || {}).map(([id, p]) => ({
-    id,
-    ...p,
-  }));
-
-  const messages = useChatMessages();
+  const playerList = Object.entries(players).map(([id, p]) => ({ id, ...p }));
 
   const handleSendChat = (text: string) =>
     sendChatMessage({ code: roomCode, playerId, name: nickname, text });
 
-  const theme = useTheme();
-
   const patch = (change: Partial<typeof activeSettings>) =>
     updateSettings({ code: roomCode, patch: change });
 
-  const handleStart = () => {
-    if (playerList.length < 2) {
-      return Alert.alert(
-        "Nog niemand anders",
-        "Je bent alleen in de kamer. Toch starten om te testen?",
-        [
-          { text: "Wachten", style: "cancel" },
-          {
-            text: "Starten",
-            onPress: () =>
-              startGame({ code: roomCode, players, settings: activeSettings, serverNow }),
-          },
-        ],
-      );
-    }
+  const start = () =>
     startGame({ code: roomCode, players, settings: activeSettings, serverNow });
+
+  const handleStart = () => {
+    if (playerList.length >= 2) return start();
+    Alert.alert("Nog niemand anders", "Je bent alleen in de kamer. Toch starten?", [
+      { text: "Wachten", style: "cancel" },
+      { text: "Starten", onPress: start },
+    ]);
   };
 
   const confirmKick = (player: { id: string; name: string }) =>
@@ -148,53 +156,30 @@ export default function WaitingScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[
-        styles.container,
-        { backgroundColor: theme.background, paddingTop: insets.top + spacing.sm },
-      ]}
+      style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}
     >
       <View style={styles.header}>
-        <View>
-          <ThemedText themeColor="textMuted" style={styles.codeLabel}>
-            Kamercode
-          </ThemedText>
-          <ThemedText themeColor="primary" style={styles.code}>
-            {roomCode}
-          </ThemedText>
+        <View style={styles.headerText}>
+          <CodeLabel>kamercode</CodeLabel>
+          <DigitTiles value={roomCode} colored />
         </View>
-        <TouchableOpacity
-          onPress={onLeave}
-          style={[styles.leaveButton, { backgroundColor: theme.surfaceLighter }]}
-        >
-          <ThemedText themeColor="danger" style={styles.leaveText}>
-            {isHost ? "Sluiten" : "Verlaten"}
-          </ThemedText>
-        </TouchableOpacity>
+        <LeaveButton isHost={isHost} onPress={onLeave} />
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <ThemedText themeColor="textMuted" style={styles.sectionTitle}>
-          Spelers ({playerList.length})
-        </ThemedText>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <CodeLabel style={styles.sectionTitle}>{`spelers (${playerList.length})`}</CodeLabel>
         {playerList.map((player) => (
           <PlayerRow
             key={player.id}
             player={player}
             isYou={player.id === playerId}
-            onKick={
-              isHost && player.id !== playerId
-                ? () => confirmKick(player)
-                : undefined
-            }
+            onKick={isHost && player.id !== playerId ? () => confirmKick(player) : undefined}
           />
         ))}
 
-        <ThemedText themeColor="textMuted" style={styles.sectionTitle}>
-          Instellingen
-        </ThemedText>
+        <CodeLabel style={styles.sectionTitle}>
+          {isHost ? "instellingen" : "instellingen van de host"}
+        </CodeLabel>
         <OptionRow
           label="Aantal rondes"
           options={ROUND_OPTIONS}
@@ -217,59 +202,49 @@ export default function WaitingScreen() {
           // version. pickWords falls back to the default pack in that case.
           value={activeSettings.wordPack as WordPackKey}
           onSelect={(value) => patch({ wordPack: value })}
-          format={(key: WordPackKey) =>
-            `${WORD_PACKS[key].emoji} ${WORD_PACKS[key].label}`
-          }
+          format={(key) => WORD_PACKS[key].label}
+          dot={(key) => theme[WORD_PACKS[key].color]}
           disabled={!isHost}
         />
 
-        <View
-          style={[
-            styles.rules,
-            { backgroundColor: theme.surfaceLight, borderColor: theme.success },
-          ]}
-        >
-          <ThemedText themeColor="success" style={styles.rulesTitle}>
-            📖 Spelregels
-          </ThemedText>
-          <ThemedText style={styles.rulesText}>
-            • Elke speler tekent één keer per ronde.
-          </ThemedText>
-          <ThemedText style={styles.rulesText}>
-            • Raden gaat via de chat: hoe sneller, hoe meer punten (tot 1000).
-          </ThemedText>
-          <ThemedText style={styles.rulesText}>
-            • Top 3 snelste raders krijgen een bonus (+300 / +200 / +100).
-          </ThemedText>
-          <ThemedText style={styles.rulesText}>
-            • De tekenaar krijgt 100 punten per speler die het raadt.
-          </ThemedText>
+        <View style={[styles.rules, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+          <ThemedText type="heading">Spelregels</ThemedText>
+          {RULES.map((rule, index) => {
+            const color = BRAND_COLORS[index % BRAND_COLORS.length];
+            return (
+              <View key={rule} style={styles.rule}>
+                <View
+                  style={[styles.ruleNumber, { backgroundColor: theme[color], borderColor: theme.line }]}
+                >
+                  <ThemedText type="code" style={{ color: ON_COLOR[color] }}>
+                    {index + 1}
+                  </ThemedText>
+                </View>
+                <ThemedText type="small" style={styles.ruleText}>
+                  {rule}
+                </ThemedText>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
 
-      <View style={[styles.chatSection, { borderTopColor: theme.border }]}>
-        <ThemedText themeColor="textMuted" style={styles.chatTitle}>
-          💬 Chat
-        </ThemedText>
-        <ChatPanel
-          messages={messages}
-          onSend={handleSendChat}
-          placeholder="Zeg hallo tegen de groep..."
-        />
-      </View>
+      <ChatPanel
+        messages={messages}
+        onSend={handleSendChat}
+        placeholder="Zeg hallo tegen de groep..."
+      />
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
         {isHost ? (
-          <TouchableOpacity
-            style={[styles.startButton, { backgroundColor: theme.primary }]}
+          <Button
+            label="Start het spel"
+            icon={{ ios: "play.fill", android: "play_arrow" }}
+            size="lg"
             onPress={handleStart}
-          >
-            <Text style={styles.startText}>START SPEL</Text>
-          </TouchableOpacity>
+          />
         ) : (
-          <ThemedText themeColor="textMuted" style={styles.waitingText}>
-            Wachten tot de host het spel start...
-          </ThemedText>
+          <CodeLabel style={styles.waitingText}>wachten tot de host start...</CodeLabel>
         )}
       </View>
     </KeyboardAvoidingView>
@@ -281,81 +256,45 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
     paddingBottom: spacing.lg,
   },
-  codeLabel: { fontSize: 13 },
-  code: {
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: 6,
-  },
-  leaveButton: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.sm,
-  },
-  leaveText: { fontWeight: "bold" },
+  headerText: { gap: spacing.sm },
   scroll: { flex: 1 },
-  chatSection: { borderTopWidth: 1 },
-  chatTitle: {
-    fontSize: 13,
-    fontWeight: "bold",
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-  },
   scrollContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  settingBlock: { marginBottom: spacing.lg },
-  settingLabel: { fontSize: 15, marginBottom: spacing.sm },
+  sectionTitle: { marginTop: spacing.md, marginBottom: spacing.md },
+  settingBlock: { marginBottom: spacing.lg, gap: spacing.sm },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   option: {
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md + 2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  optionDisabled: { opacity: 0.5 },
-  optionText: { fontWeight: "600" },
-  rules: {
-    padding: spacing.lg + 2,
-    borderRadius: radius.md,
-    marginTop: spacing.xl,
-    borderWidth: 1,
-  },
-  rulesTitle: {
-    fontSize: 17,
-    fontWeight: "bold",
-    marginBottom: spacing.md,
-  },
-  rulesText: {
-    fontSize: 14,
-    marginBottom: spacing.sm - 2,
-    lineHeight: 20,
-  },
-  footer: { padding: spacing.xl },
-  startButton: {
-    padding: spacing.lg,
-    borderRadius: radius.md,
+    flexDirection: "row",
     alignItems: "center",
+    gap: spacing.xs + 2,
+    height: 38,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: radius.pill,
+    borderWidth: stroke.regular,
   },
-  startText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "bold",
-    letterSpacing: 1,
+  optionDisabled: { opacity: 0.45 },
+  dot: { width: 12, height: 12, borderRadius: 6, borderWidth: stroke.thin },
+  rules: {
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    borderWidth: stroke.regular,
+    marginTop: spacing.sm,
+    gap: spacing.md,
   },
-  waitingText: {
-    fontSize: 16,
-    fontStyle: "italic",
-    textAlign: "center",
+  rule: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  ruleNumber: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: stroke.regular,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  ruleText: { flex: 1 },
+  footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.sm },
+  waitingText: { textAlign: "center", paddingVertical: spacing.md },
 });

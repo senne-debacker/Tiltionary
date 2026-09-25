@@ -1,20 +1,21 @@
-// Text that takes its color from the theme and its size from a fixed type
-// scale, so font sizes live in one place.
+// Text that takes its color from the theme and its font from a fixed type
+// scale, so font sizes and families live in one place.
 
 import { StyleSheet, Text, type TextProps } from "react-native";
 
-import type { ThemeColor } from "@/constants/theme";
+import { fonts, type ThemeColor } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 export type ThemedTextProps = TextProps & {
   type?:
-    | "default"
-    | "hero"
+    | "display"
     | "title"
-    | "subtitle"
+    | "heading"
+    | "default"
+    | "strong"
     | "small"
-    | "smallBold"
-    | "label";
+    | "smallStrong"
+    | "code";
   themeColor?: ThemeColor;
 };
 
@@ -28,26 +29,29 @@ export function ThemedText({
 
   return (
     <Text
-      style={[
-        { color: theme[themeColor ?? "text"] },
-        styles[type],
-        style,
-      ]}
+      style={[{ color: theme[themeColor ?? "text"] }, styles[type], style]}
       {...rest}
     />
   );
 }
 
+/** Monospace label in the "// label" style of the styleboard. */
+export function CodeLabel({ children, style, ...rest }: Omit<ThemedTextProps, "type">) {
+  return (
+    <ThemedText type="code" themeColor="textMuted" style={style} {...rest}>
+      {"// "}
+      {children}
+    </ThemedText>
+  );
+}
+
 const styles = StyleSheet.create({
-  hero: { fontSize: 44, fontWeight: "800" },
-  title: { fontSize: 32, fontWeight: "bold" },
-  subtitle: { fontSize: 20, fontWeight: "600" },
-  default: { fontSize: 16, fontWeight: "500" },
-  small: { fontSize: 14 },
-  smallBold: { fontSize: 14, fontWeight: "700" },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
+  display: { fontFamily: fonts.bold, fontSize: 44, lineHeight: 48, letterSpacing: -1.2 },
+  title: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 36, letterSpacing: -0.6 },
+  heading: { fontFamily: fonts.semibold, fontSize: 21, lineHeight: 27, letterSpacing: -0.2 },
+  default: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 22 },
+  strong: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 22 },
+  small: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
+  smallStrong: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20 },
+  code: { fontFamily: fonts.mono, fontSize: 12, lineHeight: 16, letterSpacing: 0.2 },
 });

@@ -2,28 +2,22 @@
 // be saved or shared as a photo or as a GIF of how it was drawn.
 
 import { useRef, useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, View, Pressable, Alert, ActivityIndicator } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DrawingCanvas from "@/components/drawing-canvas";
 import ColorPicker from "@/components/color-picker";
 import DrawingToolbar from "@/components/drawing-toolbar";
+import { Button } from "@/components/button";
+import { CodeLabel, ThemedText } from "@/components/themed-text";
 import useTiltDrawing from "@/hooks/use-tilt-drawing";
 import {
   saveDrawing,
   shareDrawing,
   type ExportFormat,
 } from "@/logic/export-drawing";
-import { radius, spacing, shadow } from "@/constants/theme";
+import { radius, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ThemedText } from "@/components/themed-text";
 import type { LayoutChangeEvent } from "react-native";
 
 const FORMATS: { value: ExportFormat; label: string }[] = [
@@ -79,7 +73,7 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
           "Geef Tiltionary toegang om foto's op te slaan via je instellingen.",
         );
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Oeps!", "Opslaan is niet gelukt. Probeer het nog eens.");
     } finally {
       setExporting(false);
@@ -94,7 +88,7 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
       if (!result.ok && result.reason === "unavailable") {
         Alert.alert("Niet beschikbaar", "Delen wordt niet ondersteund op dit toestel.");
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Oeps!", "Delen is niet gelukt. Probeer het nog eens.");
     } finally {
       setExporting(false);
@@ -103,30 +97,26 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: theme.surface, paddingTop: insets.top + spacing.sm },
-        ]}
-      >
-        <ThemedText style={styles.title}>Sandbox</ThemedText>
-        <TouchableOpacity
-          style={[
-            styles.finishButton,
-            { backgroundColor: theme.success },
-            !hasDrawing && styles.finishButtonDisabled,
-          ]}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <View style={styles.headerText}>
+          <CodeLabel>oefenen</CodeLabel>
+          <ThemedText type="title">Sandbox</ThemedText>
+        </View>
+        <Button
+          label="Klaar"
+          icon={{ ios: "checkmark", android: "check" }}
+          color="green"
+          size="sm"
           onPress={() => setShowExport(true)}
           disabled={!hasDrawing}
-        >
-          <Text style={styles.finishText}>Klaar ✓</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.exitButton, { backgroundColor: theme.danger }]}
+        />
+        <Button
+          icon={{ ios: "xmark", android: "close" }}
+          variant="outline"
+          size="sm"
           onPress={onExit}
-        >
-          <Text style={styles.actionText}>Stop</Text>
-        </TouchableOpacity>
+          accessibilityLabel="Sandbox sluiten"
+        />
       </View>
 
       <ColorPicker value={inkColor} onChange={setInkColor} />
@@ -142,103 +132,74 @@ export default function SandboxScreen({ onExit }: { onExit: () => void }) {
         onLayout={onCanvasLayout}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        hint={
-          drawState === "waiting"
-            ? "Tik om het balletje te laten vallen"
-            : undefined
-        }
+        hint={drawState === "waiting" ? "tik om het balletje te laten vallen" : undefined}
       />
 
-      <DrawingToolbar
-        onUndo={undo}
-        canUndo={canUndo}
-        onClear={clear}
-        canClear={hasDrawing}
-      />
+      <DrawingToolbar onUndo={undo} canUndo={canUndo} onClear={clear} canClear={hasDrawing} />
 
-      <ThemedText
-        themeColor="textDim"
-        style={[styles.tip, { backgroundColor: theme.surface }]}
-      >
-        Kantel om te rollen · Tik om je pen op te tillen
-      </ThemedText>
+      <CodeLabel style={[styles.tip, { paddingBottom: insets.bottom + spacing.md }]}>
+        kantel om te rollen · tik om je pen op te tillen
+      </CodeLabel>
 
       {showExport && (
         <View style={styles.overlay}>
-          <View style={[styles.sheet, { backgroundColor: theme.surfaceLight }]}>
-            <ThemedText style={styles.sheetTitle}>Mooi getekend! 🎨</ThemedText>
+          <View style={[styles.sheet, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+            <CodeLabel>klaar met tekenen</CodeLabel>
+            <ThemedText type="title">Mooi getekend!</ThemedText>
             <ThemedText themeColor="textMuted" style={styles.sheetSub}>
-              Wat wil je ermee doen?
+              Bewaar je tekening als foto, of als GIF van hoe ze ontstond.
             </ThemedText>
 
-            <View style={[styles.formatRow, { backgroundColor: theme.surfaceLighter }]}>
+            <View style={[styles.formatRow, { borderColor: theme.line }]}>
               {FORMATS.map((option) => {
                 const selected = option.value === format;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={option.value}
-                    style={[
-                      styles.formatOption,
-                      selected && { backgroundColor: theme.primary },
-                    ]}
+                    style={[styles.formatOption, selected && { backgroundColor: theme.text }]}
                     onPress={() => setFormat(option.value)}
                     disabled={exporting}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                   >
-                    <Text
-                      style={[
-                        styles.formatText,
-                        { color: selected ? "#FFFFFF" : theme.textMuted },
-                      ]}
+                    <ThemedText
+                      type="smallStrong"
+                      style={{ color: selected ? theme.background : theme.text }}
                     >
                       {option.label}
-                    </Text>
-                  </TouchableOpacity>
+                    </ThemedText>
+                  </Pressable>
                 );
               })}
             </View>
-            {format === "gif" && (
-              <ThemedText themeColor="textDim" style={styles.formatHint}>
-                Een filmpje van hoe je tekening ontstond.
-              </ThemedText>
-            )}
 
             {exporting ? (
               <View style={styles.spinner}>
-                <ActivityIndicator color={theme.primary} />
-                {format === "gif" && (
-                  <ThemedText themeColor="textMuted" style={styles.spinnerText}>
-                    GIF maken...
-                  </ThemedText>
-                )}
+                <ActivityIndicator color={theme.blue} />
+                {format === "gif" && <CodeLabel>gif maken...</CodeLabel>}
               </View>
             ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.sheetButton, { backgroundColor: theme.primary }]}
+              <View style={styles.actions}>
+                <Button
+                  label="Opslaan in Foto's"
+                  icon={{ ios: "square.and.arrow.down", android: "download" }}
                   onPress={handleSave}
-                >
-                  <Text style={styles.sheetButtonText}>📷 Opslaan in Foto's</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.sheetButton, { backgroundColor: theme.primary }]}
+                />
+                <Button
+                  label="Delen"
+                  icon={{ ios: "square.and.arrow.up", android: "share" }}
+                  color="yellow"
                   onPress={handleShare}
-                >
-                  <Text style={styles.sheetButtonText}>📤 Delen</Text>
-                </TouchableOpacity>
-              </>
+                />
+              </View>
             )}
 
-            <TouchableOpacity
-              style={styles.sheetClose}
+            <Button
+              label="Terug naar tekenen"
+              variant="outline"
               onPress={() => setShowExport(false)}
               disabled={exporting}
-            >
-              <ThemedText themeColor="textMuted" style={styles.sheetCloseText}>
-                Terug naar tekenen
-              </ThemedText>
-            </TouchableOpacity>
+            />
           </View>
         </View>
       )}
@@ -250,80 +211,44 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingBottom: spacing.md + 3,
+    alignItems: "flex-end",
+    gap: spacing.sm,
     paddingHorizontal: spacing.xl,
-    gap: spacing.sm + 2,
+    paddingBottom: spacing.sm,
   },
-  title: { fontSize: 20, fontWeight: "bold", flex: 1 },
-  finishButton: {
-    paddingHorizontal: spacing.md + 3,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-  },
-  finishButtonDisabled: { opacity: 0.35 },
-  finishText: { color: "#FFFFFF", fontWeight: "bold" },
-  exitButton: {
-    paddingHorizontal: spacing.md + 3,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-  },
-  actionText: { color: "#FFFFFF", fontWeight: "bold" },
-  tip: {
-    fontSize: 12,
-    textAlign: "center",
-    paddingVertical: spacing.md + 2,
-    paddingHorizontal: spacing.xl,
-  },
+  headerText: { flex: 1 },
+  tip: { textAlign: "center", paddingTop: spacing.md, paddingHorizontal: spacing.xl },
   overlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(13,10,23,0.85)",
+    backgroundColor: "rgba(31,31,31,0.6)",
     justifyContent: "center",
-    alignItems: "center",
-    padding: spacing.xxl,
+    padding: spacing.xl,
   },
   sheet: {
     borderRadius: radius.lg,
-    padding: spacing.xl + 6,
-    width: "100%",
-    alignItems: "center",
-    ...shadow.md,
+    borderWidth: stroke.regular,
+    padding: spacing.xl,
+    gap: spacing.sm,
   },
-  sheetTitle: { fontSize: 22, fontWeight: "bold" },
-  sheetSub: {
-    fontSize: 14,
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
-  },
-  sheetButton: {
-    paddingVertical: spacing.lg - 1,
-    borderRadius: radius.md,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  sheetButtonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
-  spinner: { marginVertical: spacing.xl, alignItems: "center", gap: spacing.sm },
-  spinnerText: { fontSize: 14 },
+  sheetSub: { marginBottom: spacing.sm },
   formatRow: {
     flexDirection: "row",
-    borderRadius: radius.md,
-    padding: spacing.xs,
+    borderWidth: stroke.regular,
+    borderRadius: radius.pill,
+    padding: 3,
     marginBottom: spacing.sm,
-    alignSelf: "stretch",
   },
   formatOption: {
     flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
+    height: 38,
+    borderRadius: radius.pill,
     alignItems: "center",
+    justifyContent: "center",
   },
-  formatText: { fontWeight: "700" },
-  formatHint: { fontSize: 13, marginBottom: spacing.sm, textAlign: "center" },
-  sheetClose: { marginTop: spacing.xs + 2, padding: spacing.sm + 2 },
-  sheetCloseText: { fontSize: 14 },
+  spinner: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xl },
+  actions: { gap: spacing.sm },
 });

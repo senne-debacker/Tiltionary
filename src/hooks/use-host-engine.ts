@@ -84,7 +84,7 @@ export default function useHostEngine() {
             if (everyoneGuessed && !timeUp) {
               await sendSystemMessage({
                 code,
-                text: "Iedereen heeft het geraden! 🎉",
+                text: "Iedereen heeft het geraden!",
                 tone: "success",
               });
             } else if (drawerGone) {

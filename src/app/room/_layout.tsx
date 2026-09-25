@@ -15,6 +15,7 @@ import { useRoomStore } from "@/hooks/use-room-store";
 import useHostEngine from "@/hooks/use-host-engine";
 import usePresence from "@/hooks/use-presence";
 import { useTheme } from "@/hooks/use-theme";
+import { ON_COLOR, fonts, spacing, stroke } from "@/constants/theme";
 
 export default function RoomLayout() {
   const theme = useTheme();
@@ -64,13 +65,15 @@ export default function RoomLayout() {
         <View
           style={[
             styles.awayBanner,
-            { backgroundColor: theme.warning, paddingTop: insets.top + 8 },
+            {
+              backgroundColor: theme.yellow,
+              borderColor: theme.line,
+              paddingTop: insets.top + spacing.sm,
+            },
           ]}
           pointerEvents="none"
         >
-          <Text style={styles.awayBannerText}>
-            ⏳ Host is even weg... het spel wacht.
-          </Text>
+          <Text style={styles.awayBannerText}>{"// host is even weg, het spel wacht"}</Text>
         </View>
       )}
     </>
@@ -83,8 +86,9 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingBottom: 10,
+    paddingBottom: spacing.sm + 2,
     alignItems: "center",
+    borderBottomWidth: stroke.regular,
   },
-  awayBannerText: { color: "#1A1625", fontWeight: "700", fontSize: 13 },
+  awayBannerText: { color: ON_COLOR.yellow, fontFamily: fonts.mono, fontSize: 13 },
 });

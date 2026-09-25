@@ -38,16 +38,13 @@ After the first build, `npx expo start` is enough to reload JavaScript changes.
 
 ### Changing the music
 
-Each part of the app plays its own looping track from `assets/music`.
-The repository ships with one second of silence per track as a placeholder.
-Replace these files with your own music and keep the same names:
+The music lives in `assets/music`, and `logic/feedback.ts` decides which file plays where.
+Screens that share a file keep the song playing without restarting when you move between them.
 
 | File | Plays on |
 | --- | --- |
-| `home.mp3` | Home screen and sandbox |
-| `lobby.mp3` | Waiting room |
-| `game.mp3` | Announcement, word choice, drawing and turn results |
-| `podium.mp3` | Final standings |
+| `lobby-music.mp3` | Home screen, sandbox and waiting room |
+| `game-music.mp3` | Announcement, word choice, drawing, turn results and podium |
 
 ## Project structure
 
@@ -66,7 +63,7 @@ src/
 │       ├── result.tsx        phase "turnResult"
 │       └── podium.tsx        phase "podium"
 ├── screens/             The full screens that the routes render
-├── components/          Reusable UI: canvas, chat, toolbar, dropdown, rows
+├── components/          Reusable UI: button, canvas, chat, digit tiles, dropdown
 ├── hooks/               State and side effects
 │   ├── use-*-store.ts   Zustand stores: session, room, settings
 │   └── use-*.ts         Hooks for Firebase listeners, host engine, drawing
@@ -77,7 +74,7 @@ src/
 │   ├── feedback.ts      Music, the "ding" and phase haptics
 │   ├── export-drawing.ts  Save or share as PNG or GIF
 │   └── drawing-gif.ts   Renders a drawing into an animated GIF
-├── constants/theme.ts   Colors, spacing, radius and shadows
+├── constants/theme.ts   Design tokens: colors, fonts, spacing, radius, outlines
 ├── data/words.ts        Word packs
 └── types/               Types for Firebase data and for gifenc
 assets/
@@ -153,6 +150,17 @@ stateDiagram-v2
     podium --> lobby: host plays again
     podium --> [*]: room closed
 ```
+
+## Design
+
+The look follows a styleboard based on Google's developer event branding.
+
+- **Colors.** Four brand colors, blue, red, yellow and green, each with a pastel tint. Every screen supports light and dark mode.
+- **Flat shapes.** Thin outlines replace shadows. Buttons and inputs are pills, and cards have large rounded corners.
+- **Type.** Google Sans for text and Google Sans Code for the small `// labels` above sections.
+- **Motifs.** Countdown-style digit tiles for the room code and timers, a ticket card for the turn result, and colored blocks for the podium.
+
+All tokens live in `src/constants/theme.ts`, and the shared `Button`, `ThemedText`, `ThemedView` and `DigitTiles` components use them.
 
 ## Code conventions
 

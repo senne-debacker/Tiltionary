@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/google-sans": "^0.4.2",
+    "@expo-google-fonts/google-sans-code": "^0.4.3",
     "@shopify/flash-list": "2.0.2",
     "@types/react": "~19.2.4",
     "expo": "~57.0.23",

@@ -4,14 +4,7 @@
 // The screen mounts fresh for every turn, so the local drawing always starts
 // empty without any reset logic.
 
-import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { StyleSheet, View, Text, KeyboardAvoidingView, Platform } from "react-native";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Haptics from "expo-haptics";
 import DrawingCanvas from "@/components/drawing-canvas";
@@ -20,6 +13,7 @@ import TimerBar from "@/components/timer-bar";
 import ColorPicker from "@/components/color-picker";
 import DrawingToolbar from "@/components/drawing-toolbar";
 import LeaveButton from "@/components/leave-button";
+import { Button } from "@/components/button";
 import useTiltDrawing from "@/hooks/use-tilt-drawing";
 import { useCountdown, serverNow } from "@/hooks/use-server-time";
 import { useSessionStore } from "@/hooks/use-session-store";
@@ -34,10 +28,10 @@ import {
   normalizePaths,
 } from "@/logic/drawing";
 import { startDrawingTurn, sendGuess } from "@/logic/room";
-import { canvas, radius, spacing } from "@/constants/theme";
+import { BRAND_COLORS, canvas, fonts, radius, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ThemedText } from "@/components/themed-text";
+import { CodeLabel, ThemedText } from "@/components/themed-text";
 import type { SyncPointsPayload } from "@/hooks/use-tilt-drawing";
 import type { LayoutChangeEvent } from "react-native";
 
@@ -154,9 +148,9 @@ export default function GameScreen() {
 
   const chatDisabled = isDrawer || haveGuessed || !isPlaying;
   const chatPlaceholder = isDrawer
-    ? "Jij tekent — jij mag niet raden 😉"
+    ? "Jij tekent, dus jij raadt niet"
     : haveGuessed
-      ? "Je hebt het al geraden! 🎉"
+      ? "Je hebt het al geraden!"
       : "Typ je gok...";
 
   return (
@@ -164,38 +158,31 @@ export default function GameScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={[styles.container, { backgroundColor: theme.background }]}
     >
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: theme.surface, paddingTop: insets.top + spacing.sm },
-        ]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerTop}>
-          <View>
-            <ThemedText themeColor="textMuted" style={styles.round}>
-              Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3}
-            </ThemedText>
-            <ThemedText themeColor="success" style={styles.guessCount}>
-              {guessCount}/{guessers.length} geraden
-            </ThemedText>
+          <View style={styles.headerInfo}>
+            <CodeLabel>{`ronde ${gameState?.currentRound || 1}/${settings?.maxRounds || 3}`}</CodeLabel>
+            <View style={[styles.pill, { borderColor: theme.line, backgroundColor: theme.greenSoft }]}>
+              <ThemedText type="code" style={styles.pillText}>
+                {`${guessCount}/${guessers.length} geraden`}
+              </ThemedText>
+            </View>
           </View>
           <LeaveButton isHost={isHost} onPress={onLeave} />
         </View>
 
-        <ThemedText style={styles.word}>{wordDisplay}</ThemedText>
-        <ThemedText themeColor="textMuted" style={styles.drawerLine}>
+        <ThemedText type="title" style={styles.word} numberOfLines={1} adjustsFontSizeToFit>
+          {wordDisplay}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textMuted" style={styles.drawerLine}>
           {isDrawer ? "Jij tekent" : `${drawerName} tekent`}
           {!isDrawer && word && !isChoosing ? ` · ${word.length} letters` : ""}
         </ThemedText>
 
-        {isPlaying && (
-          <TimerBar msLeft={msLeft} totalMs={gameState?.turnDurationMs} />
-        )}
+        {isPlaying && <TimerBar msLeft={msLeft} totalMs={gameState?.turnDurationMs} />}
       </View>
 
-      {isDrawer && isPlaying && (
-        <ColorPicker value={inkColor} onChange={setInkColor} />
-      )}
+      {isDrawer && isPlaying && <ColorPicker value={inkColor} onChange={setInkColor} />}
 
       <DrawingCanvas
         paths={isDrawer ? localPaths : remotePaths}
@@ -210,7 +197,7 @@ export default function GameScreen() {
         onTouchEnd={handleTouchEnd}
         hint={
           isDrawer && isPlaying && drawState === "waiting"
-            ? "Tik om het balletje te laten vallen"
+            ? "tik om het balletje te laten vallen"
             : undefined
         }
       >
@@ -220,24 +207,23 @@ export default function GameScreen() {
               <>
                 <Text style={styles.overlayTitle}>Kies een woord</Text>
                 <Text style={styles.overlaySub}>
-                  Nog {Math.ceil(msLeft / 1000)}s — anders kiezen wij er een
+                  {`// nog ${Math.ceil(msLeft / 1000)}s, anders kiezen wij`}
                 </Text>
-                {(gameState?.wordChoices || []).map((choice) => (
-                  <TouchableOpacity
+                {(gameState?.wordChoices || []).map((choice, index) => (
+                  <Button
                     key={choice}
-                    style={[styles.wordButton, { backgroundColor: theme.primary }]}
+                    label={choice}
+                    color={BRAND_COLORS[index % BRAND_COLORS.length]}
+                    size="lg"
                     onPress={() => handleChooseWord(choice)}
-                  >
-                    <Text style={styles.wordButtonText}>{choice}</Text>
-                  </TouchableOpacity>
+                    style={styles.wordButton}
+                  />
                 ))}
               </>
             ) : (
               <>
-                <Text style={styles.overlayTitle}>
-                  {drawerName} kiest een woord...
-                </Text>
-                <Text style={styles.overlaySub}>Maak je klaar om te raden!</Text>
+                <Text style={styles.overlayTitle}>{drawerName} kiest een woord</Text>
+                <Text style={styles.overlaySub}>{"// maak je klaar om te raden"}</Text>
               </>
             )}
           </View>
@@ -258,6 +244,7 @@ export default function GameScreen() {
         onSend={handleSend}
         disabled={chatDisabled}
         placeholder={chatPlaceholder}
+        style={styles.chat}
       />
     </KeyboardAvoidingView>
   );
@@ -265,30 +252,23 @@ export default function GameScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    paddingBottom: spacing.md,
-    paddingHorizontal: spacing.xl,
-  },
+  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md, gap: spacing.xs },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: spacing.sm,
+    alignItems: "center",
+    marginBottom: spacing.xs,
   },
-  round: { fontSize: 13, fontWeight: "600" },
-  guessCount: { fontSize: 13, fontWeight: "600" },
-  word: {
-    fontSize: 26,
-    fontWeight: "bold",
-    letterSpacing: 4,
-    textAlign: "center",
+  headerInfo: { gap: spacing.xs, alignItems: "flex-start" },
+  pill: {
+    borderWidth: stroke.thin,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
   },
-  drawerLine: {
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: spacing.xs - 2,
-    marginBottom: spacing.sm + 2,
-  },
+  pillText: { color: "#1F1F1F" },
+  word: { textAlign: "center", letterSpacing: 3 },
+  drawerLine: { textAlign: "center", marginBottom: spacing.xs },
   overlay: {
     // StyleSheet.absoluteFillObject was removed in React Native 0.86.
     position: "absolute",
@@ -299,33 +279,22 @@ const styles = StyleSheet.create({
     backgroundColor: canvas.overlay,
     justifyContent: "center",
     alignItems: "center",
-    padding: spacing.xxl,
+    padding: spacing.xl,
   },
   overlayTitle: {
-    color: "#F7F5FF",
-    fontSize: 24,
-    fontWeight: "bold",
+    color: "#FFFFFF",
+    fontFamily: fonts.bold,
+    fontSize: 28,
     textAlign: "center",
   },
   overlaySub: {
-    color: canvas.hint,
-    fontSize: 14,
-    marginTop: spacing.sm - 2,
-    marginBottom: spacing.xxl - 4,
+    color: "#BDC1C6",
+    fontFamily: fonts.mono,
+    fontSize: 13,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xl,
     textAlign: "center",
   },
-  wordButton: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xxl,
-    borderRadius: radius.md,
-    marginBottom: spacing.md,
-    width: "100%",
-    alignItems: "center",
-  },
-  wordButtonText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "bold",
-    letterSpacing: 2,
-  },
+  wordButton: { alignSelf: "stretch", marginBottom: spacing.md },
+  chat: { marginTop: spacing.md },
 });

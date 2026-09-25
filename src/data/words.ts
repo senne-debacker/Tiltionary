@@ -1,10 +1,14 @@
 // Word packs. The words are simple on purpose: drawing with a rolling ball
 // leaves little room for detail.
 
+import type { BrandColor } from "@/constants/theme";
+
+type WordPack = { label: string; color: BrandColor; words: string[] };
+
 export const WORD_PACKS = {
   algemeen: {
     label: "Algemeen",
-    emoji: "🎲",
+    color: "blue",
     words: [
       "HUIS", "AUTO", "BOOM", "ZON", "MAAN", "STER", "FIETS", "BOOT",
       "TREIN", "VLIEGTUIG", "BRUG", "BERG", "WOLK", "REGEN", "SNEEUWMAN",
@@ -16,7 +20,7 @@ export const WORD_PACKS = {
   },
   dieren: {
     label: "Dieren",
-    emoji: "🐙",
+    color: "red",
     words: [
       "KAT", "HOND", "VIS", "VOGEL", "SLANG", "OLIFANT", "GIRAF", "MUIS",
       "KONIJN", "SCHAAP", "KOE", "VARKEN", "PAARD", "KIP", "EEND", "UIL",
@@ -28,7 +32,7 @@ export const WORD_PACKS = {
   },
   eten: {
     label: "Eten",
-    emoji: "🍕",
+    color: "yellow",
     words: [
       "APPEL", "BANAAN", "PEER", "DRUIF", "AARDBEI", "KERS", "CITROEN",
       "WORTEL", "PATAT", "PIZZA", "TAART", "KOEK", "BROOD", "KAAS",
@@ -41,7 +45,7 @@ export const WORD_PACKS = {
   },
   voorwerpen: {
     label: "Voorwerpen",
-    emoji: "🔧",
+    color: "green",
     words: [
       "HAMER", "ZAAG", "SCHAAR", "POTLOOD", "PEN", "BOEK", "TELEFOON",
       "LAPTOP", "MUIS", "TOETSENBORD", "BEKER", "BORD", "VORK", "MES",
@@ -51,7 +55,7 @@ export const WORD_PACKS = {
       "VOETBAL", "SKATEBOARD", "SKI", "ANKER", "KROON", "ZWAARD", "SCHILD",
     ],
   },
-};
+} satisfies Record<string, WordPack>;
 
 export type WordPackKey = keyof typeof WORD_PACKS;
 

@@ -1,55 +1,43 @@
-// Progress bar for the turn timer. It turns from green to amber to red as
+// Progress bar for the turn timer. It turns from green to yellow to red as
 // time runs out.
 
-import React from "react";
-import { StyleSheet, View, Text } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { ThemedText } from "@/components/themed-text";
+import { fonts, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
 type TimerBarProps = {
   msLeft: number;
   totalMs?: number;
-  label?: string;
 };
 
-function TimerBar({ msLeft, totalMs = 0, label }: TimerBarProps) {
+function TimerBar({ msLeft, totalMs = 0 }: TimerBarProps) {
   const theme = useTheme();
   const seconds = Math.ceil(msLeft / 1000);
   const ratio = totalMs > 0 ? Math.max(0, Math.min(1, msLeft / totalMs)) : 0;
-  const color =
-    ratio > 0.5 ? theme.success : ratio > 0.2 ? theme.warning : theme.danger;
+  const color = ratio > 0.5 ? theme.green : ratio > 0.2 ? theme.yellow : theme.red;
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.row}>
-        {!!label && (
-          <Text style={[styles.label, { color: theme.textMuted }]}>{label}</Text>
-        )}
-        <Text style={[styles.seconds, { color }]}>{seconds}s</Text>
+    <View style={styles.row}>
+      <View style={[styles.track, { borderColor: theme.line, backgroundColor: theme.surface }]}>
+        <View style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: color }]} />
       </View>
-      <View style={[styles.track, { backgroundColor: theme.surfaceLighter }]}>
-        <View
-          style={[
-            styles.fill,
-            { width: `${ratio * 100}%`, backgroundColor: color },
-          ]}
-        />
-      </View>
+      <ThemedText style={styles.seconds}>{seconds}s</ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { width: "100%" },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  track: {
+    flex: 1,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: stroke.regular,
+    overflow: "hidden",
   },
-  label: { fontSize: 13, fontWeight: "600" },
-  seconds: { fontSize: 15, fontWeight: "bold" },
-  track: { height: 6, borderRadius: 3, overflow: "hidden" },
-  fill: { height: "100%", borderRadius: 3 },
+  fill: { height: "100%" },
+  seconds: { fontFamily: fonts.mono, fontSize: 14, minWidth: 36, textAlign: "right" },
 });
 
 export default TimerBar;

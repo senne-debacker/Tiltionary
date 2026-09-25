@@ -1,96 +1,42 @@
 // Undo and clear buttons below the canvas. They replace a shake-to-clear
 // gesture that fired too easily by accident.
 
-import React from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
-import { radius, spacing } from "@/constants/theme";
+import { StyleSheet, View } from "react-native";
+import { Button } from "@/components/button";
+import { spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { SymbolView, type SFSymbol, type AndroidSymbol } from "expo-symbols";
-import type { ReactNode } from "react";
-
-type ToolbarButtonProps = {
-  label: string;
-  /** SF Symbol for iOS with its Material Symbol for Android. */
-  icon: { ios: SFSymbol; android: AndroidSymbol };
-  onPress: () => void;
-  disabled?: boolean;
-  tone?: "default" | "danger" | "primary";
-};
 
 type DrawingToolbarProps = {
   onUndo: () => void;
   canUndo: boolean;
   onClear: () => void;
   canClear: boolean;
-  extra?: ReactNode;
 };
 
-function ToolbarButton({
-  label,
-  icon,
-  onPress,
-  disabled,
-  tone = "default",
-}: ToolbarButtonProps) {
-  const theme = useTheme();
-  const color = disabled
-    ? theme.textMuted
-    : tone === "danger"
-      ? theme.danger
-      : theme.text;
-
-  const background =
-    tone === "primary"
-      ? theme.primary
-      : tone === "danger"
-        ? theme.surfaceLighter
-        : theme.surfaceLighter;
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.button,
-        { backgroundColor: background },
-        disabled && styles.buttonDisabled,
-      ]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <SymbolView
-        name={{ ios: icon.ios, android: icon.android, web: icon.android }}
-        tintColor={color}
-        size={16}
-      />
-      <Text style={[styles.text, { color }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-function DrawingToolbar({
-  onUndo,
-  canUndo,
-  onClear,
-  canClear,
-  extra,
-}: DrawingToolbarProps) {
+function DrawingToolbar({ onUndo, canUndo, onClear, canClear }: DrawingToolbarProps) {
   const theme = useTheme();
 
   return (
-    <View style={[styles.row, { backgroundColor: theme.surface }]}>
-      <ToolbarButton
+    <View style={styles.row}>
+      <Button
         label="Ongedaan maken"
         icon={{ ios: "arrow.uturn.backward", android: "undo" }}
+        variant="outline"
+        size="sm"
         onPress={onUndo}
         disabled={!canUndo}
+        style={styles.button}
       />
-      <ToolbarButton
+      <Button
         label="Wis alles"
         icon={{ ios: "trash", android: "delete" }}
+        variant="outline"
+        tint={theme.redText}
+        size="sm"
         onPress={onClear}
         disabled={!canClear}
-        tone="danger"
+        style={styles.button}
       />
-      {extra}
     </View>
   );
 }
@@ -98,22 +44,11 @@ function DrawingToolbar({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    gap: spacing.sm + 2,
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm + 2,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.sm,
   },
-  button: {
-    flex: 1,
-    flexDirection: "row",
-    gap: spacing.xs + 2,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buttonDisabled: { opacity: 0.35 },
-  text: { fontWeight: "700", fontSize: 13 },
+  button: { flex: 1 },
 });
 
 export default DrawingToolbar;

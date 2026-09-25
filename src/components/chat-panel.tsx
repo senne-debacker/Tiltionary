@@ -2,16 +2,11 @@
 // The input text lives in local state so typing never re-renders the screen.
 
 import { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-} from "react-native";
+import { StyleSheet, View, TextInput } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import { SymbolView } from "expo-symbols";
-import { radius, spacing } from "@/constants/theme";
+import { Button } from "@/components/button";
+import { ThemedText } from "@/components/themed-text";
+import { fonts, radius, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import type { StyleProp, ViewStyle } from "react-native";
 import type { ChatMessageWithId } from "@/types/game";
@@ -25,29 +20,23 @@ type ChatPanelProps = {
 };
 
 function Message({ item }: { item: ChatMessageWithId }) {
-  const theme = useTheme();
-
   if (item.type === "system") {
     return (
-      <Text
-        style={[
-          styles.system,
-          { color: item.tone === "success" ? theme.success : theme.warning },
-          item.tone === "success" && styles.systemSuccess,
-        ]}
+      <ThemedText
+        type="code"
+        themeColor={item.tone === "success" ? "greenText" : "textMuted"}
+        style={styles.system}
       >
         {item.text}
-      </Text>
+      </ThemedText>
     );
   }
 
   return (
-    <Text style={[styles.message, { color: theme.text }]}>
-      <Text style={[styles.author, { color: theme.textMuted }]}>
-        {item.name}:{" "}
-      </Text>
+    <ThemedText type="small" style={styles.message}>
+      <ThemedText type="smallStrong">{item.name} </ThemedText>
       {item.text}
-    </Text>
+    </ThemedText>
   );
 }
 
@@ -69,7 +58,7 @@ function ChatPanel({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }, style]}>
+    <View style={[styles.container, { borderColor: theme.line }, style]}>
       {/* FlashList fills its parent with flex: 1, so the parent needs a
           fixed height. Without it the list collapses to 0px and hides
           every message. */}
@@ -85,9 +74,9 @@ function ChatPanel({
           }}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
-            <Text style={[styles.empty, { color: theme.textDim }]}>
-              Nog geen berichten
-            </Text>
+            <ThemedText type="code" themeColor="textDim">
+              nog geen berichten
+            </ThemedText>
           }
         />
       </View>
@@ -96,7 +85,7 @@ function ChatPanel({
         <TextInput
           style={[
             styles.input,
-            { backgroundColor: theme.surfaceLighter, color: theme.text },
+            { backgroundColor: theme.surface, color: theme.text, borderColor: theme.line },
             disabled && styles.inputDisabled,
           ]}
           placeholder={placeholder || "Typ je gok..."}
@@ -111,51 +100,42 @@ function ChatPanel({
           autoCapitalize="characters"
           autoCorrect={false}
         />
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: disabled ? theme.border : theme.primary },
-          ]}
+        <Button
+          icon={{ ios: "arrow.up", android: "arrow_upward" }}
           onPress={send}
           disabled={disabled}
-        >
-          <SymbolView
-            name={{ ios: "paperplane.fill", android: "send", web: "send" }}
-            tintColor="#FFFFFF"
-            size={20}
-            fallback={<Text style={styles.buttonText}>➤</Text>}
-          />
-        </TouchableOpacity>
+          accessibilityLabel="Versturen"
+        />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {},
-  list: { height: 140 },
-  listContent: { padding: spacing.md, paddingBottom: spacing.xs },
-  empty: { fontStyle: "italic", fontSize: 13 },
-  message: { fontSize: 14, marginBottom: spacing.xs },
-  author: { fontWeight: "bold" },
-  system: { fontSize: 14, fontStyle: "italic", marginBottom: spacing.xs },
-  systemSuccess: { fontWeight: "bold" },
-  inputRow: { flexDirection: "row", padding: spacing.md, paddingTop: spacing.xs },
+  container: { borderTopWidth: stroke.regular },
+  list: { height: 132 },
+  listContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  message: { marginBottom: spacing.xs },
+  system: { marginBottom: spacing.sm },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
   input: {
     flex: 1,
-    paddingHorizontal: spacing.lg - 1,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
-    marginRight: spacing.sm + 2,
+    height: 46,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+    borderWidth: stroke.regular,
+    fontFamily: fonts.medium,
     fontSize: 16,
+    // iOS spaces out placeholder letters in a custom font unless this is set.
+    letterSpacing: 0,
   },
-  inputDisabled: { opacity: 0.4 },
-  button: {
-    paddingHorizontal: spacing.lg + 2,
-    borderRadius: radius.sm,
-    justifyContent: "center",
-  },
-  buttonText: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
+  inputDisabled: { opacity: 0.45 },
 });
 
 export default ChatPanel;

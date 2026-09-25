@@ -1,23 +1,23 @@
-// Final screen: a podium with the top three and the full ranking below it.
+// Final screen: a podium of colored blocks for the top three, with the full
+// ranking below it.
 
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import PlayerRow from "@/components/player-row";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import PlayerRow, { RANK_COLORS } from "@/components/player-row";
+import { Button } from "@/components/button";
+import { CodeLabel, ThemedText } from "@/components/themed-text";
 import { toRanking } from "@/logic/scoring";
 import { playAgain } from "@/logic/room";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
-import { radius, spacing, shadow } from "@/constants/theme";
+import { ON_COLOR, fonts, radius, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ThemedText } from "@/components/themed-text";
 
-/** Silver on the left, gold in the middle, bronze on the right. */
+/** Second place on the left, first in the middle, third on the right. */
 const PODIUM_ORDER = [1, 0, 2];
-const PODIUM_HEIGHTS = [110, 80, 60];
-const PODIUM_KEYS = ["gold", "silver", "bronze"] as const;
-const MEDALS = ["🥇", "🥈", "🥉"];
+const PODIUM_HEIGHTS = [140, 104, 76];
 
 export default function PodiumScreen() {
   const roomCode = useSessionStore((state) => state.code);
@@ -38,13 +38,14 @@ export default function PodiumScreen() {
         {
           backgroundColor: theme.background,
           paddingTop: insets.top + spacing.lg,
-          paddingBottom: insets.bottom + spacing.lg,
+          paddingBottom: insets.bottom + spacing.md,
         },
       ]}
     >
-      <ThemedText style={styles.title}>🏆 Eindstand</ThemedText>
+      <CodeLabel>einde van het spel</CodeLabel>
+      <ThemedText type="display">Eindstand</ThemedText>
       {!!winner && (
-        <ThemedText themeColor="gold" style={styles.winner}>
+        <ThemedText themeColor="textMuted">
           {winner.name} wint met {winner.score} punten!
         </ThemedText>
       )}
@@ -52,25 +53,30 @@ export default function PodiumScreen() {
       <View style={styles.podium}>
         {PODIUM_ORDER.map((rank) => {
           const player = ranking[rank];
-          if (!player) return <View key={rank} style={styles.podiumSlot} />;
+          if (!player) return <View key={rank} style={styles.slot} />;
+          const color = RANK_COLORS[rank];
           return (
-            <View key={rank} style={styles.podiumSlot}>
-              <ThemedText style={styles.podiumMedal}>{MEDALS[rank]}</ThemedText>
-              <ThemedText style={styles.podiumName} numberOfLines={1}>
+            <View key={rank} style={styles.slot}>
+              <ThemedText type="strong" numberOfLines={1}>
                 {player.name}
               </ThemedText>
-              <ThemedText themeColor="textMuted" style={styles.podiumScore}>
+              <ThemedText type="code" themeColor="textMuted" style={styles.slotScore}>
                 {player.score}
               </ThemedText>
               <View
                 style={[
-                  styles.podiumBlock,
+                  styles.block,
                   {
                     height: PODIUM_HEIGHTS[rank],
-                    backgroundColor: theme[PODIUM_KEYS[rank]],
+                    backgroundColor: theme[color],
+                    borderColor: theme.line,
                   },
                 ]}
-              />
+              >
+                <ThemedText style={[styles.blockRank, { color: ON_COLOR[color] }]}>
+                  {rank + 1}
+                </ThemedText>
+              </View>
             </View>
           );
         })}
@@ -79,96 +85,57 @@ export default function PodiumScreen() {
       <FlashList
         data={ranking}
         keyExtractor={(player) => player.id}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item: player, index }) => (
-          <PlayerRow
-            player={player}
-            rank={index}
-            showScore
-            isYou={player.id === playerId}
-          />
+          <PlayerRow player={player} rank={index} showScore isYou={player.id === playerId} />
         )}
       />
 
       <View style={styles.footer}>
         {isHost ? (
-          <TouchableOpacity
-            style={[styles.playAgain, { backgroundColor: theme.primary }]}
+          <Button
+            label="Nog een keer"
+            icon={{ ios: "arrow.clockwise", android: "replay" }}
+            size="lg"
             onPress={() => playAgain({ code: roomCode, players })}
-          >
-            <Text style={styles.playAgainText}>NOG EEN KEER</Text>
-          </TouchableOpacity>
+          />
         ) : (
-          <ThemedText themeColor="textMuted" style={styles.waiting}>
-            Wachten of de host nog een potje start...
-          </ThemedText>
+          <CodeLabel style={styles.waiting}>wachten of de host nog een potje start...</CodeLabel>
         )}
-
-        <TouchableOpacity style={styles.leave} onPress={onLeave}>
-          <ThemedText themeColor="danger" style={styles.leaveText}>
-            {isHost ? "Kamer sluiten" : "Kamer verlaten"}
-          </ThemedText>
-        </TouchableOpacity>
+        <Button
+          label={isHost ? "Kamer sluiten" : "Kamer verlaten"}
+          variant="outline"
+          tint={theme.redText}
+          onPress={onLeave}
+        />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  winner: {
-    fontSize: 17,
-    textAlign: "center",
-    marginTop: spacing.xs + 2,
-  },
+  container: { flex: 1, paddingHorizontal: spacing.xl, gap: spacing.xs },
   podium: {
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "center",
-    marginVertical: spacing.xl + 4,
     gap: spacing.sm,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  podiumSlot: { flex: 1, alignItems: "center" },
-  podiumMedal: { fontSize: 26 },
-  podiumName: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginTop: spacing.xs - 2,
-  },
-  podiumScore: { fontSize: 13, marginBottom: spacing.sm - 2 },
-  podiumBlock: {
+  slot: { flex: 1, alignItems: "center" },
+  slotScore: { marginBottom: spacing.sm },
+  block: {
     width: "100%",
-    borderTopLeftRadius: radius.sm,
-    borderTopRightRadius: radius.sm,
-  },
-  scrollContent: { paddingBottom: spacing.md - 2 },
-  footer: { marginTop: spacing.md },
-  playAgain: {
-    padding: spacing.lg,
-    borderRadius: radius.md,
+    borderWidth: stroke.regular,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    borderBottomLeftRadius: radius.sm,
+    borderBottomRightRadius: radius.sm,
     alignItems: "center",
-    ...shadow.md,
+    paddingTop: spacing.sm,
   },
-  playAgainText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  waiting: {
-    fontSize: 15,
-    fontStyle: "italic",
-    textAlign: "center",
-    paddingVertical: spacing.md,
-  },
-  leave: { padding: spacing.md + 2, alignItems: "center" },
-  leaveText: { fontSize: 15, fontWeight: "600" },
+  blockRank: { fontFamily: fonts.bold, fontSize: 40, lineHeight: 48 },
+  listContent: { paddingBottom: spacing.sm },
+  footer: { gap: spacing.sm, marginTop: spacing.sm },
+  waiting: { textAlign: "center", paddingVertical: spacing.sm },
 });

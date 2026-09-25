@@ -1,18 +1,19 @@
-// Standings after each turn: reveals the word and shows who earned what.
+// Standings after each turn: reveals the word on a ticket-style card and
+// shows who earned what.
 
 import { StyleSheet, View } from "react-native";
 import { FlashList } from "@shopify/flash-list";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PlayerRow from "@/components/player-row";
 import LeaveButton from "@/components/leave-button";
+import { CodeLabel, ThemedText } from "@/components/themed-text";
 import { toRanking } from "@/logic/scoring";
 import { useCountdown } from "@/hooks/use-server-time";
 import { useSessionStore } from "@/hooks/use-session-store";
 import { useRoomStore } from "@/hooks/use-room-store";
 import { useLeaveRoom } from "@/hooks/use-leave-room";
-import { spacing } from "@/constants/theme";
+import { BRAND_COLORS, ON_COLOR, radius, spacing, stroke } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ThemedText } from "@/components/themed-text";
 
 export default function TurnResultScreen() {
   const playerId = useSessionStore((state) => state.playerId);
@@ -28,10 +29,11 @@ export default function TurnResultScreen() {
   const insets = useSafeAreaInsets();
 
   const drawerId = gameState?.currentDrawerId;
-  const drawer = players?.[drawerId ?? ""];
+  const drawer = players[drawerId ?? ""];
   const guessCount = Object.keys(guessed).length;
   const drawerBonus = gameState?.lastDrawerBonus || 0;
   const ranking = toRanking(players);
+  const line = { borderColor: theme.line };
 
   return (
     <View
@@ -39,33 +41,60 @@ export default function TurnResultScreen() {
         styles.container,
         {
           backgroundColor: theme.background,
-          paddingTop: insets.top + spacing.lg,
-          paddingBottom: insets.bottom + spacing.lg,
+          paddingTop: insets.top + spacing.md,
+          paddingBottom: insets.bottom + spacing.md,
         },
       ]}
     >
-      <LeaveButton isHost={isHost} onPress={onLeave} style={styles.leaveButton} />
+      <View style={styles.topBar}>
+        <CodeLabel>{`ronde ${gameState?.currentRound || 1}/${settings?.maxRounds || 3}`}</CodeLabel>
+        <LeaveButton isHost={isHost} onPress={onLeave} />
+      </View>
 
-      <ThemedText themeColor="textMuted" style={styles.label}>
-        Het woord was
-      </ThemedText>
-      <ThemedText style={styles.word}>{gameState?.currentWord || "?"}</ThemedText>
+      <View style={[styles.ticket, line, { backgroundColor: theme.surface }]}>
+        <CodeLabel style={styles.ticketLabel}>het woord was</CodeLabel>
+        <View style={[styles.wordBand, line, { backgroundColor: theme.yellow }]}>
+          <ThemedText
+            type="display"
+            style={styles.word}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {gameState?.currentWord || "?"}
+          </ThemedText>
+        </View>
 
-      <ThemedText themeColor="success" style={styles.summary}>
-        {guessCount === 0
-          ? `Niemand heeft het geraden 😬`
-          : `${guessCount} ${guessCount === 1 ? "speler" : "spelers"} geraden`}
-        {drawer ? ` · ${drawer.name} kreeg +${drawerBonus}` : ""}
-      </ThemedText>
+        <View style={styles.stats}>
+          <View style={[styles.stat, { backgroundColor: theme.green }]}>
+            <ThemedText type="code" style={styles.onColor}>
+              geraden
+            </ThemedText>
+            <ThemedText type="heading" style={styles.onColor}>
+              {guessCount === 0 ? "Niemand" : `${guessCount} ${guessCount === 1 ? "speler" : "spelers"}`}
+            </ThemedText>
+          </View>
+          <View style={[styles.stat, styles.statDivider, line]}>
+            <ThemedText type="code" themeColor="textMuted" numberOfLines={1}>
+              {drawer ? drawer.name : "tekenaar"}
+            </ThemedText>
+            <ThemedText type="heading">+{drawerBonus}</ThemedText>
+          </View>
+        </View>
+
+        <View style={[styles.stripe, line]}>
+          {BRAND_COLORS.map((color) => (
+            <View key={color} style={[styles.stripePart, { backgroundColor: theme[color] }]} />
+          ))}
+        </View>
+      </View>
 
       <FlashList
         data={ranking}
         keyExtractor={(player) => player.id}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item: player, index }) => {
           const entry = guessed[player.id];
-          const gained =
-            (entry?.points || 0) + (player.id === drawerId ? drawerBonus : 0);
+          const gained = (entry?.points || 0) + (player.id === drawerId ? drawerBonus : 0);
           return (
             <PlayerRow
               player={player}
@@ -79,41 +108,41 @@ export default function TurnResultScreen() {
         }}
       />
 
-      <ThemedText themeColor="textDim" style={styles.next}>
-        Ronde {gameState?.currentRound || 1}/{settings?.maxRounds || 3} ·
-        Volgende beurt over {Math.ceil(msLeft / 1000)}s
-      </ThemedText>
+      <CodeLabel style={styles.next}>
+        {`volgende beurt over ${Math.ceil(msLeft / 1000)}s`}
+      </CodeLabel>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
+  container: { flex: 1, paddingHorizontal: spacing.xl },
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
   },
-  leaveButton: { marginBottom: spacing.sm - 2 },
-  label: {
-    fontSize: 15,
-    textAlign: "center",
+  ticket: {
+    borderWidth: stroke.regular,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    marginBottom: spacing.lg,
   },
-  word: {
-    fontSize: 40,
-    fontWeight: "bold",
-    textAlign: "center",
-    letterSpacing: 2,
-    marginTop: spacing.xs,
+  ticketLabel: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm + 2 },
+  wordBand: {
+    borderTopWidth: stroke.regular,
+    borderBottomWidth: stroke.regular,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
-  summary: {
-    fontSize: 15,
-    textAlign: "center",
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  scrollContent: { paddingBottom: spacing.md - 2 },
-  next: {
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: spacing.md,
-  },
+  word: { color: ON_COLOR.yellow, letterSpacing: 1 },
+  stats: { flexDirection: "row" },
+  stat: { flex: 1, padding: spacing.lg, gap: 2 },
+  statDivider: { borderLeftWidth: stroke.regular },
+  onColor: { color: ON_COLOR.green },
+  stripe: { flexDirection: "row", height: 12, borderTopWidth: stroke.regular },
+  stripePart: { flex: 1 },
+  listContent: { paddingBottom: spacing.sm },
+  next: { textAlign: "center", marginTop: spacing.sm },
 });

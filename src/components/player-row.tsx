@@ -1,18 +1,20 @@
-// One row in a player list: the name, plus an optional medal, score and
-// kick button.
+// One row in a player list: a rank badge, the name with small tags, and an
+// optional score and kick button.
 
-import React from "react";
-import { StyleSheet, View, TouchableOpacity } from "react-native";
-import { radius, spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
+import { StyleSheet, View } from "react-native";
+import { SymbolView } from "expo-symbols";
+import { Button } from "@/components/button";
 import { ThemedText } from "@/components/themed-text";
+import { ON_COLOR, fonts, radius, spacing, stroke, type BrandColor } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 import type { Player } from "@/types/game";
 
-const MEDALS = ["🥇", "🥈", "🥉"];
+/** Badge colors for the top three: first, second and third place. */
+export const RANK_COLORS: BrandColor[] = ["yellow", "blue", "green"];
 
 type PlayerRowProps = {
   player: Player;
-  /** Zero-based position. The top three get a medal. */
+  /** Zero-based position. The top three get a colored badge. */
   rank?: number;
   showScore?: boolean;
   /** Points this player just earned. */
@@ -21,6 +23,17 @@ type PlayerRowProps = {
   isDrawer?: boolean;
   onKick?: () => void;
 };
+
+function Tag({ label, color }: { label: string; color: string }) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.tag, { borderColor: theme.line, backgroundColor: color }]}>
+      <ThemedText type="code" style={styles.tagText}>
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
 
 export default function PlayerRow({
   player,
@@ -32,47 +45,61 @@ export default function PlayerRow({
   onKick,
 }: PlayerRowProps) {
   const theme = useTheme();
+  const rankColor = rank !== undefined ? RANK_COLORS[rank] : undefined;
 
   return (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: theme.surfaceLighter },
-        isYou && { borderWidth: 1, borderColor: theme.primary },
-      ]}
-    >
-      <View style={styles.left}>
-        {rank !== undefined && (
-          <ThemedText themeColor="textMuted" style={styles.rank}>
-            {MEDALS[rank] || `${rank + 1}.`}
+    <View style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.line }]}>
+      {rank !== undefined && (
+        <View
+          style={[
+            styles.badge,
+            {
+              borderColor: theme.line,
+              backgroundColor: rankColor ? theme[rankColor] : theme.surfaceMuted,
+            },
+          ]}
+        >
+          <ThemedText
+            type="smallStrong"
+            style={rankColor ? { color: ON_COLOR[rankColor] } : undefined}
+          >
+            {rank + 1}
           </ThemedText>
-        )}
-        <ThemedText style={styles.name} numberOfLines={1}>
+        </View>
+      )}
+
+      <View style={styles.nameBlock}>
+        <ThemedText type="strong" numberOfLines={1} style={styles.name}>
           {player.name}
-          {player.isHost ? " 👑" : ""}
-          {isDrawer ? " ✏️" : ""}
-          {isYou ? " (jij)" : ""}
         </ThemedText>
+        {isDrawer && (
+          <SymbolView
+            name={{ ios: "pencil", android: "edit", web: "edit" }}
+            size={15}
+            tintColor={theme.text}
+          />
+        )}
+        {player.isHost && <Tag label="host" color={theme.yellowSoft} />}
+        {isYou && <Tag label="jij" color={theme.blueSoft} />}
       </View>
 
-      <View style={styles.right}>
-        {!!gained && gained > 0 && (
-          <ThemedText themeColor="success" style={styles.gained}>
-            +{gained}
-          </ThemedText>
-        )}
-        {showScore && (
-          <ThemedText style={styles.score}>{player.score || 0}</ThemedText>
-        )}
-        {!!onKick && (
-          <TouchableOpacity
-            onPress={onKick}
-            style={[styles.kick, { backgroundColor: theme.danger }]}
-          >
-            <ThemedText style={styles.kickText}>✕</ThemedText>
-          </TouchableOpacity>
-        )}
-      </View>
+      {!!gained && gained > 0 && (
+        <ThemedText type="smallStrong" themeColor="greenText" style={styles.gained}>
+          +{gained}
+        </ThemedText>
+      )}
+      {showScore && <ThemedText style={styles.score}>{player.score || 0}</ThemedText>}
+      {!!onKick && (
+        <Button
+          icon={{ ios: "xmark", android: "close" }}
+          variant="outline"
+          tint={theme.redText}
+          size="sm"
+          onPress={onKick}
+          accessibilityLabel={`${player.name} verwijderen`}
+          style={styles.kick}
+        />
+      )}
     </View>
   );
 }
@@ -80,26 +107,33 @@ export default function PlayerRow({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: spacing.lg - 1,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    borderWidth: stroke.regular,
     marginBottom: spacing.sm,
+    minHeight: 56,
   },
-  left: { flexDirection: "row", alignItems: "center", flex: 1 },
-  right: { flexDirection: "row", alignItems: "center" },
-  rank: { fontSize: 16, marginRight: spacing.sm + 2, width: 28 },
-  name: { fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  score: { fontSize: 17, fontWeight: "bold", minWidth: 50, textAlign: "right" },
-  gained: { fontSize: 15, fontWeight: "bold", marginRight: spacing.sm + 2 },
-  kick: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
+  badge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: stroke.regular,
     alignItems: "center",
-    marginLeft: spacing.md,
+    justifyContent: "center",
   },
-  kickText: { fontWeight: "bold", fontSize: 14, color: "#FFFFFF" },
+  nameBlock: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  name: { flexShrink: 1 },
+  tag: {
+    borderWidth: stroke.thin,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 1,
+  },
+  tagText: { color: "#1F1F1F" },
+  gained: { fontFamily: fonts.mono },
+  score: { fontFamily: fonts.bold, fontSize: 18, minWidth: 44, textAlign: "right" },
+  kick: { marginLeft: spacing.xs },
 });

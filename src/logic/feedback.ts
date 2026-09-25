@@ -14,19 +14,25 @@ import type { GameStatus } from "@/types/game";
 
 type Track = "home" | "lobby" | "game" | "podium";
 
-/** Background music per part of the app. Replace these files to change it. */
+const LOBBY_MUSIC = require("../../assets/music/lobby-music.mp3");
+const GAME_MUSIC = require("../../assets/music/game-music.mp3");
+
+/**
+ * Background music per part of the app. Parts that share a file keep playing
+ * without restarting when you move between them.
+ */
 const TRACKS: Record<Track, number> = {
-  home: require("../../assets/music/home.mp3"),
-  lobby: require("../../assets/music/lobby.mp3"),
-  game: require("../../assets/music/game.mp3"),
-  podium: require("../../assets/music/podium.mp3"),
+  home: LOBBY_MUSIC,
+  lobby: LOBBY_MUSIC,
+  game: GAME_MUSIC,
+  podium: GAME_MUSIC,
 };
 
 /** Music stays below the "ding" so a correct guess is always audible. */
 const MUSIC_VOLUME = 0.5;
 
 let started = false;
-let currentTrack: Track | null = null;
+let currentSource: number | null = null;
 let music: ReturnType<typeof createAudioPlayer> | null = null;
 let ding: ReturnType<typeof createAudioPlayer> | null = null;
 
@@ -51,12 +57,12 @@ function syncMusic() {
     return;
   }
 
-  const track = trackForState();
-  if (track === currentTrack && music.playing) return;
+  const source = TRACKS[trackForState()];
+  if (source === currentSource && music.playing) return;
 
-  if (track !== currentTrack) {
-    currentTrack = track;
-    music.replace(TRACKS[track]);
+  if (source !== currentSource) {
+    currentSource = source;
+    music.replace(source);
   }
   music.play();
 }
